@@ -1,0 +1,712 @@
+import { useState, useEffect, useRef } from 'react';
+import {
+  subscribeUsers,
+  subscribeApps,
+  addUser,
+  updateUser,
+  deleteUser,
+  addApp,
+  updateApp,
+  deleteApp,
+} from '../dataService';
+import { ADMIN_PASSWORD } from '../firebase';
+import type { AppUser, AppItem } from '../types';
+import { Logo } from '../components/Logo';
+import {
+  Lock,
+  ArrowLeft,
+  Users,
+  Package,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  ToggleLeft,
+  ToggleRight,
+  Calendar,
+  Download,
+  Tag,
+  Link2,
+  Image as ImageIcon,
+  FileArchive,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+
+interface AdminPanelProps {
+  onExit: () => void;
+}
+
+type Tab = 'users' | 'apps';
+
+export function AdminPanel({ onExit }: AdminPanelProps) {
+  const [authed, setAuthed] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [tab, setTab] = useState<Tab>('users');
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (authed) return;
+    passwordRef.current?.focus();
+  }, [authed]);
+
+  const handleAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === ADMIN_PASSWORD) {
+      setAuthed(true);
+      setAuthError('');
+    } else {
+      setAuthError('Contraseña maestra incorrecta');
+    }
+  };
+
+  if (!authed) {
+    return (
+      <div className="min-h-screen bg-gradient-loki flex flex-col items-center justify-center p-8 animate-fade-in">
+        <div className="pointer-events-none fixed inset-0 overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-loki-green/5 rounded-full blur-[120px]" />
+        </div>
+        <div className="relative z-10 w-full max-w-md">
+          <div className="flex justify-center mb-10">
+            <Logo size="lg" />
+          </div>
+
+          <div className="bg-loki-card border border-loki-border rounded-2xl p-8 shadow-2xl">
+            <div className="flex items-center gap-3 mb-6">
+              <Lock className="text-loki-green" size={24} />
+              <h2 className="text-xl font-semibold">Panel de Administración</h2>
+            </div>
+
+            {authError && (
+              <div className="mb-4 flex items-center gap-2 bg-loki-danger/10 border border-loki-danger/30 rounded-lg p-3">
+                <AlertCircle className="text-loki-danger shrink-0" size={18} />
+                <span className="text-loki-danger text-sm">{authError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div>
+                <label className="block text-sm text-loki-gray mb-2">Contraseña Maestra</label>
+                <input
+                  ref={passwordRef}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoFocus
+                  className="w-full bg-loki-dark border-2 border-loki-border rounded-xl px-4 py-3.5 text-lg tv-focusable focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-loki-green text-loki-black font-bold py-3.5 rounded-xl tv-focusable hover:bg-loki-green/90 transition-colors"
+              >
+                ACCEDER
+              </button>
+              <button
+                type="button"
+                onClick={onExit}
+                className="w-full text-loki-gray hover:text-loki-white text-sm py-2 transition-colors"
+              >
+                ← Volver
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-loki flex flex-col animate-fade-in">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-loki-black/90 backdrop-blur-xl border-b border-loki-border">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Logo size="md" />
+            <span className="hidden sm:inline text-loki-gray-dim text-sm border-l border-loki-border pl-6">
+              Panel Admin
+            </span>
+          </div>
+          <button
+            onClick={onExit}
+            className="flex items-center gap-2 px-4 py-2 bg-loki-card border-2 border-loki-border hover:border-loki-green rounded-lg tv-focusable text-sm transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Salir
+          </button>
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <div className="sticky top-[73px] z-40 bg-loki-black/80 backdrop-blur-xl border-b border-loki-border">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 flex gap-2">
+          <TabButton active={tab === 'users'} onClick={() => setTab('users')} icon={<Users size={18} />}>
+            Gestión de Usuarios
+          </TabButton>
+          <TabButton active={tab === 'apps'} onClick={() => setTab('apps')} icon={<Package size={18} />}>
+            Gestión de APKs
+          </TabButton>
+        </div>
+      </div>
+
+      {/* Content */}
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 lg:px-10 py-8">
+        {tab === 'users' ? <UsersManager /> : <AppsManager />}
+      </main>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+        active
+          ? 'border-loki-green text-loki-green'
+          : 'border-transparent text-loki-gray hover:text-loki-white'
+      }`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+// ==================== USERS MANAGER ====================
+
+function UsersManager() {
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({
+    username: '',
+    password: '',
+    expirationDate: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPassword, setEditPassword] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const unsub = subscribeUsers((data) => {
+      setUsers(data);
+      setLoading(false);
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.username.trim() || !form.password.trim()) return;
+    setSaving(true);
+    try {
+      await addUser({
+        username: form.username.trim(),
+        password: form.password.trim(),
+        isActive: true,
+        expirationDate: form.expirationDate || undefined,
+      });
+      setForm({ username: '', password: '', expirationDate: '' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = async (user: AppUser) => {
+    await updateUser(user.id, { isActive: !user.isActive });
+  };
+
+  const handleDelete = async (user: AppUser) => {
+    if (!confirm(`¿Eliminar al usuario "${user.username}"?`)) return;
+    await deleteUser(user.id);
+  };
+
+  const handleSavePassword = async (user: AppUser) => {
+    if (!editPassword.trim()) return;
+    await updateUser(user.id, { password: editPassword.trim() });
+    setEditingId(null);
+    setEditPassword('');
+  };
+
+  const filtered = users.filter((u) =>
+    u.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="grid lg:grid-cols-[380px_1fr] gap-8">
+      {/* Create form */}
+      <div className="space-y-6">
+        <div className="bg-loki-card border border-loki-border rounded-2xl p-6">
+          <h3 className="flex items-center gap-2 text-lg font-semibold mb-5">
+            <Plus className="text-loki-green" size={20} />
+            Nuevo Usuario
+          </h3>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <FormField label="Usuario">
+              <input
+                type="text"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                className="form-input"
+                placeholder="nombre_usuario"
+              />
+            </FormField>
+            <FormField label="Contraseña">
+              <input
+                type="text"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="form-input"
+                placeholder="contraseña"
+              />
+            </FormField>
+            <FormField label="Fecha de Expiración (opcional)">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={16} />
+                <input
+                  type="date"
+                  value={form.expirationDate}
+                  onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
+                  className="form-input pl-10"
+                />
+              </div>
+            </FormField>
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full bg-loki-green text-loki-black font-bold py-3 rounded-xl tv-focusable hover:bg-loki-green/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+              Crear Usuario
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Users table */}
+      <div className="bg-loki-card border border-loki-border rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold">
+            Usuarios ({filtered.length})
+          </h3>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar..."
+            className="bg-loki-dark border border-loki-border rounded-lg px-3 py-2 text-sm w-40 tv-focusable focus:outline-none"
+          />
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-loki-green" size={32} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-loki-gray py-20">No hay usuarios</p>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((user) => (
+              <div
+                key={user.id}
+                className="bg-loki-dark border border-loki-border rounded-xl p-4 flex flex-wrap items-center gap-4 hover:border-loki-border/80 transition-colors"
+              >
+                {/* Info */}
+                <div className="flex-1 min-w-[150px]">
+                  <p className="font-semibold text-loki-white">{user.username}</p>
+                  {user.expirationDate && (
+                    <p className="text-xs text-loki-gray-dim flex items-center gap-1 mt-1">
+                      <Calendar size={12} />
+                      Expira: {user.expirationDate}
+                    </p>
+                  )}
+                </div>
+
+                {/* Toggle */}
+                <button
+                  onClick={() => handleToggle(user)}
+                  className="flex items-center gap-2 tv-focusable"
+                >
+                  {user.isActive ? (
+                    <ToggleRight className="text-loki-green" size={32} />
+                  ) : (
+                    <ToggleLeft className="text-loki-gray-dim" size={32} />
+                  )}
+                  <span className={`text-xs font-medium ${user.isActive ? 'text-loki-green' : 'text-loki-gray-dim'}`}>
+                    {user.isActive ? 'Activo' : 'Inactivo'}
+                  </span>
+                </button>
+
+                {/* Edit password */}
+                {editingId === user.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder="Nueva clave"
+                      autoFocus
+                      className="bg-loki-black border border-loki-green rounded-lg px-3 py-1.5 text-sm w-28 tv-focusable focus:outline-none"
+                    />
+                    <button onClick={() => handleSavePassword(user)} className="text-loki-green hover:scale-110 transition-transform">
+                      <Check size={20} />
+                    </button>
+                    <button onClick={() => { setEditingId(null); setEditPassword(''); }} className="text-loki-danger hover:scale-110 transition-transform">
+                      <X size={20} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setEditingId(user.id); setEditPassword(''); }}
+                    className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                  >
+                    <Pencil size={16} />
+                    Clave
+                  </button>
+                )}
+
+                {/* Delete */}
+                <button
+                  onClick={() => handleDelete(user)}
+                  className="text-loki-gray hover:text-loki-danger transition-colors tv-focusable"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==================== APPS MANAGER ====================
+
+function AppsManager() {
+  const [apps, setApps] = useState<AppItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({
+    name: '',
+    version: '',
+    size: '',
+    description: '',
+    iconUrl: '',
+    downloadUrl: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeApps((data) => {
+      setApps(data);
+      setLoading(false);
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const resetForm = () => {
+    setForm({ name: '', version: '', size: '', description: '', iconUrl: '', downloadUrl: '' });
+    setEditingId(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        await updateApp(editingId, {
+          name: form.name.trim(),
+          version: form.version.trim(),
+          size: form.size.trim(),
+          description: form.description.trim(),
+          iconUrl: form.iconUrl.trim(),
+          downloadUrl: form.downloadUrl.trim(),
+        });
+      } else {
+        await addApp({
+          name: form.name.trim(),
+          version: form.version.trim() || 'v1.0.0',
+          size: form.size.trim() || '—',
+          description: form.description.trim(),
+          iconUrl: form.iconUrl.trim(),
+          downloadUrl: form.downloadUrl.trim(),
+        });
+      }
+      resetForm();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (app: AppItem) => {
+    setEditingId(app.id);
+    setForm({
+      name: app.name,
+      version: app.version,
+      size: app.size,
+      description: app.description,
+      iconUrl: app.iconUrl,
+      downloadUrl: app.downloadUrl,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleQuickUpdate = async (app: AppItem, field: 'version' | 'downloadUrl', value: string) => {
+    if (!value.trim()) return;
+    await updateApp(app.id, { [field]: value.trim() });
+  };
+
+  const handleDelete = async (app: AppItem) => {
+    if (!confirm(`¿Eliminar la app "${app.name}"?`)) return;
+    await deleteApp(app.id);
+    if (editingId === app.id) resetForm();
+  };
+
+  return (
+    <div className="grid lg:grid-cols-[420px_1fr] gap-8">
+      {/* Form */}
+      <div className="bg-loki-card border border-loki-border rounded-2xl p-6 sticky top-[180px] self-start">
+        <h3 className="flex items-center gap-2 text-lg font-semibold mb-5">
+          {editingId ? <Pencil className="text-loki-green" size={20} /> : <Plus className="text-loki-green" size={20} />}
+          {editingId ? 'Editar App' : 'Nueva App'}
+        </h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormField label="Nombre">
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="form-input" placeholder="LOKI Player" />
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Versión">
+              <div className="relative">
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={14} />
+                <input type="text" value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })}
+                  className="form-input pl-9" placeholder="v2.4.1" />
+              </div>
+            </FormField>
+            <FormField label="Tamaño">
+              <input type="text" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
+                className="form-input" placeholder="45 MB" />
+            </FormField>
+          </div>
+          <FormField label="Descripción">
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="form-input min-h-[80px] resize-y" placeholder="Breve descripción de la app" />
+          </FormField>
+          <FormField label="URL del Ícono">
+            <div className="relative">
+              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={14} />
+              <input type="url" value={form.iconUrl} onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
+                className="form-input pl-9" placeholder="https://..." />
+            </div>
+          </FormField>
+          <FormField label="URL de Descarga">
+            <div className="relative">
+              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={14} />
+              <input type="url" value={form.downloadUrl} onChange={(e) => setForm({ ...form, downloadUrl: e.target.value })}
+                className="form-input pl-9" placeholder="https://github.com/..." />
+            </div>
+          </FormField>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving}
+              className="flex-1 bg-loki-green text-loki-black font-bold py-3 rounded-xl tv-focusable hover:bg-loki-green/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 size={18} className="animate-spin" /> : editingId ? <Check size={18} /> : <Plus size={18} />}
+              {editingId ? 'Guardar' : 'Agregar'}
+            </button>
+            {editingId && (
+              <button type="button" onClick={resetForm}
+                className="px-4 py-3 bg-loki-dark border border-loki-border rounded-xl text-loki-gray hover:text-loki-white transition-colors">
+                <X size={18} />
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {/* Apps list */}
+      <div className="bg-loki-card border border-loki-border rounded-2xl p-6">
+        <h3 className="text-lg font-semibold mb-5">
+          APKs Cargadas ({apps.length})
+        </h3>
+
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-loki-green" size={32} />
+          </div>
+        ) : apps.length === 0 ? (
+          <div className="flex flex-col items-center py-20 text-loki-gray">
+            <FileArchive size={48} className="mb-3 text-loki-gray-dim" />
+            <p>No hay aplicaciones cargadas</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {apps.map((app) => (
+              <AppAdminCard
+                key={app.id}
+                app={app}
+                onEdit={() => handleEdit(app)}
+                onDelete={() => handleDelete(app)}
+                onQuickUpdate={handleQuickUpdate}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AppAdminCard({
+  app,
+  onEdit,
+  onDelete,
+  onQuickUpdate,
+}: {
+  app: AppItem;
+  onEdit: () => void;
+  onDelete: () => void;
+  onQuickUpdate: (app: AppItem, field: 'version' | 'downloadUrl', value: string) => void;
+}) {
+  const [editingField, setEditingField] = useState<'version' | 'downloadUrl' | null>(null);
+  const [tempValue, setTempValue] = useState('');
+  const [imgError, setImgError] = useState(false);
+
+  const startEdit = (field: 'version' | 'downloadUrl') => {
+    setEditingField(field);
+    setTempValue(app[field]);
+  };
+
+  const saveEdit = () => {
+    if (editingField) {
+      onQuickUpdate(app, editingField, tempValue);
+      setEditingField(null);
+    }
+  };
+
+  return (
+    <div className="bg-loki-dark border border-loki-border rounded-xl p-4 hover:border-loki-border/80 transition-colors">
+      <div className="flex items-start gap-4">
+        {/* Icon */}
+        <div className="w-14 h-14 rounded-lg bg-loki-black border border-loki-border flex items-center justify-center shrink-0 overflow-hidden">
+          {imgError ? (
+            <FileArchive size={24} className="text-loki-gray-dim" />
+          ) : (
+            <img
+              src={app.iconUrl}
+              alt={app.name}
+              onError={() => setImgError(true)}
+              className="w-full h-full object-contain"
+              loading="lazy"
+            />
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-semibold text-loki-white">{app.name}</h4>
+            <span className="text-xs font-mono bg-loki-green/10 text-loki-green px-2 py-0.5 rounded">
+              {app.version}
+            </span>
+            <span className="text-xs text-loki-gray-dim">{app.size}</span>
+          </div>
+          <p className="text-sm text-loki-gray-dim mt-1 line-clamp-1">{app.description}</p>
+
+          {/* Quick edit fields */}
+          <div className="mt-3 space-y-2">
+            {/* Version quick edit */}
+            <div className="flex items-center gap-2">
+              <Tag size={14} className="text-loki-gray-dim shrink-0" />
+              {editingField === 'version' ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <input
+                    type="text"
+                    value={tempValue}
+                    onChange={(e) => setTempValue(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                    className="flex-1 bg-loki-black border border-loki-green rounded px-2 py-1 text-sm tv-focusable focus:outline-none"
+                  />
+                  <button onClick={saveEdit} className="text-loki-green"><Check size={16} /></button>
+                  <button onClick={() => setEditingField(null)} className="text-loki-danger"><X size={16} /></button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => startEdit('version')}
+                  className="text-sm text-loki-gray hover:text-loki-green transition-colors"
+                >
+                  {app.version} ✎
+                </button>
+              )}
+            </div>
+
+            {/* Download URL quick edit */}
+            <div className="flex items-center gap-2">
+              <Download size={14} className="text-loki-gray-dim shrink-0" />
+              {editingField === 'downloadUrl' ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <input
+                    type="url"
+                    value={tempValue}
+                    onChange={(e) => setTempValue(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                    className="flex-1 bg-loki-black border border-loki-green rounded px-2 py-1 text-xs tv-focusable focus:outline-none"
+                  />
+                  <button onClick={saveEdit} className="text-loki-green"><Check size={16} /></button>
+                  <button onClick={() => setEditingField(null)} className="text-loki-danger"><X size={16} /></button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => startEdit('downloadUrl')}
+                  className="text-xs text-loki-gray hover:text-loki-green transition-colors truncate max-w-[300px]"
+                >
+                  {app.downloadUrl || 'Sin URL'} ✎
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2 shrink-0">
+          <button onClick={onEdit} className="text-loki-gray hover:text-loki-green transition-colors p-1" title="Editar">
+            <Pencil size={18} />
+          </button>
+          <button onClick={onDelete} className="text-loki-gray hover:text-loki-danger transition-colors p-1" title="Eliminar">
+            <Trash2 size={18} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== SHARED ====================
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs text-loki-gray mb-1.5 tracking-wide uppercase">{label}</label>
+      {children}
+    </div>
+  );
+}
