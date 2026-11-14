@@ -27,7 +27,7 @@ export function Logo({ size = 'md', onClick }: LogoProps) {
           LOKI<span className="text-loki-green"> TV</span>
         </span>
         <span className="text-[0.6rem] tracking-[0.3em] text-loki-gray-dim font-mono mt-1">
-          GOD OF STORIES
+          SOSTENIENDO HISTORIAS
         </span>
       </div>
     </div>

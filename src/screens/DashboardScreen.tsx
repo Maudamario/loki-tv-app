@@ -85,7 +85,7 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
       <footer className="border-t border-loki-border py-6">
         <div className="max-w-[1600px] mx-auto px-6 lg:px-10 text-center">
           <p className="text-loki-gray-dim text-xs tracking-wide">
-            LOKI TV · God of Stories · {new Date().getFullYear()}
+            LOKI TV · SOSTENIENDO HISTORIAS · {new Date().getFullYear()}
           </p>
         </div>
       </footer>
@@ -175,7 +175,7 @@ export function ExpiredScreen({ onBack }: { onBack: () => void }) {
 
         <div className="bg-loki-card border-2 border-loki-border rounded-xl p-6 mb-8 text-left">
           <p className="text-loki-gray text-sm mb-2 tracking-wide">Contacto de soporte:</p>
-          <p className="text-loki-white text-lg font-mono">support@lokitv.app</p>
+          <p className="text-loki-white text-lg font-mono">lokilaufeyson.avt@gmail.com</p>
         </div>
 
         <button
