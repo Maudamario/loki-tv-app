@@ -55,6 +55,28 @@ export function subscribeUsers(cb: UsersCallback): Unsubscribe | (() => void) {
   return () => {};
 }
 
+/** Lee allowedApps del documento del usuario. Si el campo no existe, devuelve []. */
+export function subscribeAllowedApps(
+  userId: string,
+  cb: (allowedApps: string[]) => void
+): Unsubscribe | (() => void) {
+  if (hasFirebaseConfig && db) {
+    return onSnapshot(
+      doc(db, usersCol, userId),
+      (snapshot) => {
+        const raw = snapshot.data()?.allowedApps;
+        cb(Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []);
+      },
+      () => {
+        cb([]);
+      }
+    );
+  }
+  const raw = mockUsers.find((u) => u.id === userId)?.allowedApps;
+  cb(Array.isArray(raw) ? raw : []);
+  return () => {};
+}
+
 export function subscribeApps(cb: AppsCallback): Unsubscribe | (() => void) {
   if (hasFirebaseConfig && db) {
     return onSnapshot(collection(db, appsCol), (snapshot) => {
@@ -71,15 +93,32 @@ export function subscribeApps(cb: AppsCallback): Unsubscribe | (() => void) {
   return () => {};
 }
 
+type UserField = string | boolean | string[];
+
+/** Quita `undefined` para que Firestore persista `allowedApps` y el resto de campos. */
+function userPayload(data: Partial<Omit<AppUser, 'id'>>): Record<string, UserField> {
+  const payload: Record<string, UserField> = {};
+  if (data.username !== undefined) payload.username = data.username;
+  if (data.password !== undefined) payload.password = data.password;
+  if (data.isActive !== undefined) payload.isActive = data.isActive;
+  if (data.expirationDate !== undefined) payload.expirationDate = data.expirationDate;
+  if (data.allowedApps !== undefined) payload.allowedApps = [...data.allowedApps];
+  return payload;
+}
+
 export async function addUser(
   user: Omit<AppUser, 'id'>
 ): Promise<string> {
+  const payload = userPayload({
+    ...user,
+    allowedApps: user.allowedApps ?? [],
+  });
   if (hasFirebaseConfig && db) {
-    const ref = await addDoc(collection(db, usersCol), user);
+    const ref = await addDoc(collection(db, usersCol), payload);
     return ref.id;
   }
   const id = `mock-user-${Date.now()}`;
-  mockUsers.push({ id, ...user });
+  mockUsers.push({ id, ...(payload as Omit<AppUser, 'id'>) });
   return id;
 }
 
@@ -87,13 +126,14 @@ export async function updateUser(
   id: string,
   updates: Partial<Omit<AppUser, 'id'>>
 ): Promise<void> {
+  const payload = userPayload(updates);
   if (hasFirebaseConfig && db) {
-    await updateDoc(doc(db, usersCol, id), updates as Record<string, string | boolean | undefined>);
+    await updateDoc(doc(db, usersCol, id), payload);
     return;
   }
   const idx = mockUsers.findIndex((u) => u.id === id);
   if (idx >= 0) {
-    mockUsers[idx] = { ...mockUsers[idx], ...updates };
+    mockUsers[idx] = { ...mockUsers[idx], ...payload };
   }
 }
 

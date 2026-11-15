@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { useAuth } from '../authContext';
 import { useDpadNav } from '../useDpadNav';
-import { subscribeApps } from '../dataService';
+import { subscribeAllowedApps, subscribeApps } from '../dataService';
 import type { AppItem } from '../types';
 import { Logo } from '../components/Logo';
 import { Download, Package, LogOut, AlertTriangle, Loader2, FileArchive } from 'lucide-react';
@@ -10,21 +10,45 @@ interface DashboardScreenProps {
   onLogout: () => void;
 }
 
+function isRemoteSelectKey(e: KeyboardEvent<HTMLAnchorElement>): boolean {
+  return e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === ' ' || e.keyCode === 23;
+}
+
 export function DashboardScreen({ onLogout }: DashboardScreenProps) {
   const { user } = useAuth();
-  const { } = useDpadNav();
+  useDpadNav();
   const [apps, setApps] = useState<AppItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allowedApps, setAllowedApps] = useState<string[] | null>(null);
+  const [appsLoading, setAppsLoading] = useState(true);
 
   useEffect(() => {
     const unsub = subscribeApps((data) => {
       setApps(data);
-      setLoading(false);
+      setAppsLoading(false);
     });
     return () => {
       unsub();
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setAllowedApps([]);
+      return;
+    }
+    const unsub = subscribeAllowedApps(user.id, setAllowedApps);
+    return () => {
+      unsub();
+    };
+  }, [user?.id]);
+
+  const visibleApps = useMemo(() => {
+    if (!allowedApps || allowedApps.length === 0) return [];
+    const allowed = new Set(allowedApps);
+    return apps.filter((app) => allowed.has(app.id));
+  }, [apps, allowedApps]);
+
+  const loading = appsLoading || allowedApps === null;
 
   return (
     <div className="min-h-screen bg-gradient-loki flex flex-col animate-fade-in">
@@ -41,7 +65,9 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
             </div>
 
             <button
+              type="button"
               data-focusable
+              tabIndex={0}
               onClick={onLogout}
               className="flex items-center gap-2 px-5 py-2.5 bg-loki-card border-2 border-loki-border hover:border-loki-danger rounded-xl tv-focusable text-sm font-medium transition-colors"
             >
@@ -67,15 +93,15 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
           <div className="flex items-center justify-center py-32">
             <Loader2 className="animate-spin text-loki-green" size={48} />
           </div>
-        ) : apps.length === 0 ? (
+        ) : visibleApps.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 text-center">
             <Package size={64} className="text-loki-gray-dim mb-4" />
-            <p className="text-loki-gray text-lg">No hay aplicaciones disponibles</p>
+            <p className="text-loki-gray text-lg">No hay aplicaciones asignadas a tu cuenta</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {apps.map((app) => (
-              <AppCard key={app.id} app={app} />
+            {visibleApps.map((app, index) => (
+              <AppCard key={app.id} app={app} autoFocus={index === 0} />
             ))}
           </div>
         )}
@@ -93,14 +119,24 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
   );
 }
 
-function AppCard({ app }: { app: AppItem }) {
+function AppCard({ app, autoFocus = false }: { app: AppItem; autoFocus?: boolean }) {
   const [imgError, setImgError] = useState(false);
+  const downloadRef = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      downloadRef.current?.focus();
+    }
+  }, [autoFocus]);
+
+  const startDownload = () => {
+    const link = downloadRef.current;
+    if (!link) return;
+    link.click();
+  };
 
   return (
-    <div
-      data-focusable
-      className="card-sheen group bg-loki-card border-2 border-loki-border rounded-2xl overflow-hidden tv-focusable flex flex-col"
-    >
+    <div className="card-sheen group bg-loki-card border-2 border-loki-border rounded-2xl overflow-hidden flex flex-col">
       {/* Icon */}
       <div className="relative h-32 flex items-center justify-center bg-loki-dark border-b border-loki-border overflow-hidden">
         {imgError ? (
@@ -129,12 +165,20 @@ function AppCard({ app }: { app: AppItem }) {
 
         {/* Download */}
         <a
+          ref={downloadRef}
           href={app.downloadUrl}
           download
           target="_blank"
           rel="noopener noreferrer"
+          tabIndex={0}
+          autoFocus={autoFocus}
           data-focusable
-          className="w-full flex items-center justify-center gap-2 bg-loki-green text-loki-black font-bold py-3 rounded-xl tv-focusable hover:bg-loki-green/90 transition-colors text-base"
+          onKeyDown={(e) => {
+            if (!isRemoteSelectKey(e)) return;
+            e.preventDefault();
+            startDownload();
+          }}
+          className="w-full flex items-center justify-center gap-2 bg-loki-green text-loki-black font-bold py-3 rounded-xl tv-focusable hover:bg-loki-green/90 transition-colors text-base focus:outline-none focus:ring-4 focus:ring-green-500"
         >
           <Download size={18} />
           DESCARGAR APK

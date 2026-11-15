@@ -4,6 +4,8 @@ export interface AppUser {
   password: string;
   isActive: boolean;
   expirationDate?: string;
+  /** IDs de documentos de la colección apps que este usuario puede descargar. */
+  allowedApps?: string[];
 }
 
 export interface AppItem {

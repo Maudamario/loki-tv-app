@@ -187,18 +187,25 @@ function TabButton({
 
 // ==================== USERS MANAGER ====================
 
+const emptyUserForm = {
+  username: '',
+  password: '',
+  expirationDate: '',
+  allowedApps: [] as string[],
+};
+
 function UsersManager() {
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [apps, setApps] = useState<AppItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    username: '',
-    password: '',
-    expirationDate: '',
-  });
+  const [form, setForm] = useState(emptyUserForm);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPassword, setEditPassword] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [appsUserId, setAppsUserId] = useState<string | null>(null);
+  const [draftApps, setDraftApps] = useState<string[]>([]);
+  const [appsError, setAppsError] = useState('');
 
   useEffect(() => {
     const unsub = subscribeUsers((data) => {
@@ -210,6 +217,22 @@ function UsersManager() {
     };
   }, []);
 
+  useEffect(() => {
+    const unsub = subscribeApps(setApps);
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const toggleFormApp = (appId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      allowedApps: prev.allowedApps.includes(appId)
+        ? prev.allowedApps.filter((id) => id !== appId)
+        : [...prev.allowedApps, appId],
+    }));
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.username.trim() || !form.password.trim()) return;
@@ -220,10 +243,36 @@ function UsersManager() {
         password: form.password.trim(),
         isActive: true,
         expirationDate: form.expirationDate || undefined,
+        allowedApps: form.allowedApps,
       });
-      setForm({ username: '', password: '', expirationDate: '' });
+      setForm(emptyUserForm);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openApps = (user: AppUser) => {
+    setAppsUserId(user.id);
+    setDraftApps(user.allowedApps ?? []);
+    setAppsError('');
+  };
+
+  const closeApps = () => {
+    setAppsUserId(null);
+    setAppsError('');
+  };
+
+  const toggleAssignedApp = async (appId: string) => {
+    if (!appsUserId) return;
+    const prev = draftApps;
+    const next = prev.includes(appId) ? prev.filter((id) => id !== appId) : [...prev, appId];
+    setDraftApps(next);
+    setAppsError('');
+    try {
+      await updateUser(appsUserId, { allowedApps: next });
+    } catch {
+      setDraftApps(prev);
+      setAppsError('No se pudo guardar. Intente de nuevo.');
     }
   };
 
@@ -285,6 +334,9 @@ function UsersManager() {
                   className="form-input pl-10"
                 />
               </div>
+            </FormField>
+            <FormField label="APKs asignadas">
+              <AppCheckList apps={apps} selected={form.allowedApps} onToggle={toggleFormApp} />
             </FormField>
             <button
               type="submit"
@@ -352,6 +404,15 @@ function UsersManager() {
                   </span>
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => openApps(user)}
+                  className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                >
+                  <Package size={16} />
+                  Apps
+                </button>
+
                 {/* Edit password */}
                 {editingId === user.id ? (
                   <div className="flex items-center gap-2">
@@ -392,6 +453,114 @@ function UsersManager() {
           </div>
         )}
       </div>
+
+      {appsUserId && (
+        <UserAppsModal
+          username={users.find((u) => u.id === appsUserId)?.username ?? ''}
+          apps={apps}
+          selected={draftApps}
+          error={appsError}
+          onToggle={toggleAssignedApp}
+          onClose={closeApps}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserAppsModal({
+  username,
+  apps,
+  selected,
+  error,
+  onToggle,
+  onClose,
+}: {
+  username: string;
+  apps: AppItem[];
+  selected: string[];
+  error: string;
+  onToggle: (appId: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`APKs de ${username}`}
+        className="bg-loki-card border border-loki-border rounded-2xl p-6 w-full max-w-md shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Apps de {username}</h3>
+            <p className="text-sm text-loki-gray mt-1">
+              Los cambios se guardan al marcar o desmarcar.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-loki-gray hover:text-loki-white transition-colors"
+            aria-label="Cerrar"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        {error && (
+          <p className="text-sm text-loki-danger mb-3">{error}</p>
+        )}
+        <AppCheckList apps={apps} selected={selected} onToggle={onToggle} />
+      </div>
+    </div>
+  );
+}
+
+function AppCheckList({
+  apps,
+  selected,
+  onToggle,
+}: {
+  apps: AppItem[];
+  selected: string[];
+  onToggle: (appId: string) => void;
+}) {
+  if (apps.length === 0) {
+    return <p className="text-sm text-loki-gray">No hay APKs cargadas</p>;
+  }
+
+  return (
+    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+      {apps.map((app) => {
+        const checked = selected.includes(app.id);
+        return (
+          <label
+            key={app.id}
+            className="flex items-center gap-3 bg-loki-dark border border-loki-border rounded-lg px-3 py-2 cursor-pointer hover:border-loki-green/60"
+          >
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(app.id)}
+              className="w-4 h-4 accent-green-500"
+            />
+            <span className="text-sm text-loki-white flex-1 truncate">{app.name}</span>
+            <span className="text-xs text-loki-gray-dim font-mono shrink-0">{app.version}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }
