@@ -13,6 +13,7 @@
   }
 
   body {
+    zoom: 82%;
     @apply bg-loki-black text-loki-white font-sans;
     margin: 0;
     overflow-x: hidden;
