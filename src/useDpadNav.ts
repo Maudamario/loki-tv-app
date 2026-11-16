@@ -36,8 +36,11 @@ export function useDpadNav() {
         y: current.rect.top + current.rect.height / 2,
       };
 
-      const candidates = focusables.filter((f, idx) => {
-        if (idx === currentIndex) return false;
+      const scoredCandidates: { f: FocusableElement; score: number }[] = [];
+
+      for (let i = 0; i < focusables.length; i++) {
+        if (i === currentIndex) continue;
+        const f = focusables[i];
         const candCenter = {
           x: f.rect.left + f.rect.width / 2,
           y: f.rect.top + f.rect.height / 2,
@@ -46,67 +49,47 @@ export function useDpadNav() {
         const dx = candCenter.x - curCenter.x;
         const dy = candCenter.y - curCenter.y;
 
-        switch (direction) {
-          // Se tolera un pequeño margen de desviación diagonal para que la navegación sea natural
-          case 'ArrowRight':
-            return dx > 5 && Math.abs(dy) < Math.max(current.rect.height * 1.5, 80);
-          case 'ArrowLeft':
-            return dx < -5 && Math.abs(dy) < Math.max(current.rect.height * 1.5, 80);
-          case 'ArrowDown':
-            return dy > 5 && Math.abs(dx) < Math.max(current.rect.width * 2, 250);
-          case 'ArrowUp':
-            return dy < -5 && Math.abs(dx) < Math.max(current.rect.width * 2, 250);
-          default:
-            return false;
-        }
-      });
+        let isValidDirection = false;
+        let score = 0;
 
-      if (candidates.length === 0) {
-        // Búsqueda de respaldo global en la misma dirección si no hay candidatos estrictos
-        const fallback = focusables.filter((f, idx) => {
-          if (idx === currentIndex) return false;
-          const candCenter = {
-            x: f.rect.left + f.rect.width / 2,
-            y: f.rect.top + f.rect.height / 2,
-          };
-          const dx = candCenter.x - curCenter.x;
-          const dy = candCenter.y - curCenter.y;
-          if (direction === 'ArrowRight') return dx > 0;
-          if (direction === 'ArrowLeft') return dx < 0;
-          if (direction === 'ArrowDown') return dy > 0;
-          if (direction === 'ArrowUp') return dy < 0;
-          return false;
-        });
-
-        if (fallback.length > 0) {
-          fallback.sort((a, b) => {
-            const distA = Math.hypot(
-              a.rect.left + a.rect.width / 2 - curCenter.x,
-              a.rect.top + a.rect.height / 2 - curCenter.y
-            );
-            const distB = Math.hypot(
-              b.rect.left + b.rect.width / 2 - curCenter.x,
-              b.rect.top + b.rect.height / 2 - curCenter.y
-            );
-            return distA - distB;
-          });
-          fallback[0].el.focus();
+        if (direction === 'ArrowRight') {
+          // Estrictamente a la derecha y dentro del margen de la misma fila (evita saltar al header)
+          if (dx > 5 && Math.abs(dy) < 120) {
+            isValidDirection = true;
+            score = dx + Math.abs(dy) * 3;
+          }
+        } else if (direction === 'ArrowLeft') {
+          // Estrictamente a la izquierda y dentro del margen de la misma fila
+          if (dx < -5 && Math.abs(dy) < 120) {
+            isValidDirection = true;
+            score = -dx + Math.abs(dy) * 3;
+          }
+        } else if (direction === 'ArrowDown') {
+          // Hacia abajo entre filas
+          if (dy > 5) {
+            isValidDirection = true;
+            score = dy + Math.abs(dx) * 0.5;
+          }
+        } else if (direction === 'ArrowUp') {
+          // Hacia arriba entre filas
+          if (dy < -5) {
+            isValidDirection = true;
+            score = -dy + Math.abs(dx) * 0.5;
+          }
         }
+
+        if (isValidDirection) {
+          scoredCandidates.push({ f, score });
+        }
+      }
+
+      if (scoredCandidates.length === 0) {
         return;
       }
 
-      // Ordenar candidatos por distancia euclidiana y alineación preferida
-      candidates.sort((a, b) => {
-        const centerA = { x: a.rect.left + a.rect.width / 2, y: a.rect.top + a.rect.height / 2 };
-        const centerB = { x: b.rect.left + b.rect.width / 2, y: b.rect.top + b.rect.height / 2 };
-        
-        const distA = Math.hypot(centerA.x - curCenter.x, centerA.y - curCenter.y);
-        const distB = Math.hypot(centerB.x - curCenter.x, centerB.y - curCenter.y);
-
-        return distA - distB;
-      });
-
-      candidates[0].el.focus();
+      // Ordenar por el menor costo (el elemento más cercano y mejor alineado en esa dirección)
+      scoredCandidates.sort((a, b) => a.score - b.score);
+      scoredCandidates[0].f.el.focus();
     },
     [getFocusables]
   );
