@@ -69,7 +69,7 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
               data-focusable
               tabIndex={0}
               onClick={onLogout}
-              className="flex items-center gap-2 px-5 py-2.5 bg-loki-card border-2 border-loki-border hover:border-loki-danger rounded-xl tv-focusable text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 bg-loki-card border-2 border-loki-border hover:border-loki-danger rounded-xl tv-focusable text-sm font-medium transition-colors focus:outline-none focus:ring-4 focus:ring-red-500"
             >
               <LogOut size={18} className="text-loki-danger" />
               Cerrar Sesión

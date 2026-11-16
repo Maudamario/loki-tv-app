@@ -2,56 +2,19 @@ import { useCallback, useEffect, useRef } from 'react';
 
 interface FocusableElement {
   el: HTMLElement;
-  row: number;
-  col: number;
+  rect: DOMRect;
 }
 
-/**
- * D-pad spatial navigation for TV remotes.
- *
- * Collects all elements with [data-focusable] attribute on key events,
- * sorts them by their screen position into rows/columns, and moves
- * focus in the direction of the arrow key. Falls back to DOM order
- * proximity when the grid layout is ambiguous.
- */
 export function useDpadNav() {
   const lastDirection = useRef<string>('');
 
   const getFocusables = useCallback((): FocusableElement[] => {
     const els = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-focusable]:not([disabled])')
+      document.querySelectorAll<HTMLElement>('[data-focusable]:not([disabled]):not([hidden])')
     );
-    const visible = els.filter((el) => {
-      const rect = el.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    });
-
-    // Sort by vertical then horizontal position, then group into rows
-    visible.sort((a, b) => {
-      const ra = a.getBoundingClientRect();
-      const rb = b.getBoundingClientRect();
-      if (Math.abs(ra.top - rb.top) > 30) return ra.top - rb.top;
-      return ra.left - rb.left;
-    });
-
-    // Assign row/col based on vertical grouping
-    const result: FocusableElement[] = [];
-    let currentRow = -1;
-    let lastTop = -Infinity;
-    let colCount = 0;
-
-    for (const el of visible) {
-      const rect = el.getBoundingClientRect();
-      if (Math.abs(rect.top - lastTop) > 30) {
-        currentRow++;
-        colCount = 0;
-        lastTop = rect.top;
-      }
-      result.push({ el, row: currentRow, col: colCount });
-      colCount++;
-    }
-
-    return result;
+    return els
+      .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0);
   }, []);
 
   const move = useCallback(
@@ -60,9 +23,7 @@ export function useDpadNav() {
       if (focusables.length === 0) return;
 
       const active = document.activeElement as HTMLElement | null;
-      const currentIndex = active
-        ? focusables.findIndex((f) => f.el === active)
-        : -1;
+      let currentIndex = focusables.findIndex((f) => f.el === active);
 
       if (currentIndex === -1) {
         focusables[0].el.focus();
@@ -70,87 +31,82 @@ export function useDpadNav() {
       }
 
       const current = focusables[currentIndex];
+      const curCenter = {
+        x: current.rect.left + current.rect.width / 2,
+        y: current.rect.top + current.rect.height / 2,
+      };
 
-      let candidates: FocusableElement[] = [];
+      const candidates = focusables.filter((f, idx) => {
+        if (idx === currentIndex) return false;
+        const candCenter = {
+          x: f.rect.left + f.rect.width / 2,
+          y: f.rect.top + f.rect.height / 2,
+        };
 
-      switch (direction) {
-        case 'ArrowRight':
-          candidates = focusables.filter(
-            (f) => f.row === current.row && f.col > current.col
-          );
-          break;
-        case 'ArrowLeft':
-          candidates = focusables.filter(
-            (f) => f.row === current.row && f.col < current.col
-          );
-          break;
-        case 'ArrowDown':
-          candidates = focusables.filter(
-            (f) => f.row > current.row
-          );
-          break;
-        case 'ArrowUp':
-          candidates = focusables.filter(
-            (f) => f.row < current.row
-          );
-          break;
-      }
+        const dx = candCenter.x - curCenter.x;
+        const dy = candCenter.y - curCenter.y;
+
+        switch (direction) {
+          // Se tolera un pequeño margen de desviación diagonal para que la navegación sea natural
+          case 'ArrowRight':
+            return dx > 5 && Math.abs(dy) < Math.max(current.rect.height * 1.5, 80);
+          case 'ArrowLeft':
+            return dx < -5 && Math.abs(dy) < Math.max(current.rect.height * 1.5, 80);
+          case 'ArrowDown':
+            return dy > 5 && Math.abs(dx) < Math.max(current.rect.width * 2, 250);
+          case 'ArrowUp':
+            return dy < -5 && Math.abs(dx) < Math.max(current.rect.width * 2, 250);
+          default:
+            return false;
+        }
+      });
 
       if (candidates.length === 0) {
-        // Wrap around for horizontal, skip for vertical at edges
-        if (direction === 'ArrowRight') {
-          const sameRowLeft = focusables.filter(
-            (f) => f.row === current.row && f.col < current.col
-          );
-          if (sameRowLeft.length > 0) {
-            // Check if there's a next row to go to instead
-            const nextRow = focusables.filter((f) => f.row === current.row + 1);
-            if (nextRow.length > 0) {
-              nextRow[0].el.focus();
-              return;
-            }
-            sameRowLeft[0].el.focus();
-            return;
-          }
-        }
-        if (direction === 'ArrowLeft') {
-          const sameRowRight = focusables.filter(
-            (f) => f.row === current.row && f.col > current.col
-          );
-          if (sameRowRight.length > 0) {
-            const prevRow = focusables.filter((f) => f.row === current.row - 1);
-            if (prevRow.length > 0) {
-              prevRow[prevRow.length - 1].el.focus();
-              return;
-            }
-            sameRowRight[sameRowRight.length - 1].el.focus();
-            return;
-          }
+        // Búsqueda de respaldo global en la misma dirección si no hay candidatos estrictos
+        const fallback = focusables.filter((f, idx) => {
+          if (idx === currentIndex) return false;
+          const candCenter = {
+            x: f.rect.left + f.rect.width / 2,
+            y: f.rect.top + f.rect.height / 2,
+          };
+          const dx = candCenter.x - curCenter.x;
+          const dy = candCenter.y - curCenter.y;
+          if (direction === 'ArrowRight') return dx > 0;
+          if (direction === 'ArrowLeft') return dx < 0;
+          if (direction === 'ArrowDown') return dy > 0;
+          if (direction === 'ArrowUp') return dy < 0;
+          return false;
+        });
+
+        if (fallback.length > 0) {
+          fallback.sort((a, b) => {
+            const distA = Math.hypot(
+              a.rect.left + a.rect.width / 2 - curCenter.x,
+              a.rect.top + a.rect.height / 2 - curCenter.y
+            );
+            const distB = Math.hypot(
+              b.rect.left + b.rect.width / 2 - curCenter.x,
+              b.rect.top + b.rect.height / 2 - curCenter.y
+            );
+            return distA - distB;
+          });
+          fallback[0].el.focus();
         }
         return;
       }
 
-      // Find closest candidate
-      let target: FocusableElement;
+      // Ordenar candidatos por distancia euclidiana y alineación preferida
+      candidates.sort((a, b) => {
+        const centerA = { x: a.rect.left + a.rect.width / 2, y: a.rect.top + a.rect.height / 2 };
+        const centerB = { x: b.rect.left + b.rect.width / 2, y: b.rect.top + b.rect.height / 2 };
+        
+        const distA = Math.hypot(centerA.x - curCenter.x, centerA.y - curCenter.y);
+        const distB = Math.hypot(centerB.x - curCenter.x, centerB.y - curCenter.y);
 
-      if (direction === 'ArrowDown' || direction === 'ArrowUp') {
-        // Find the candidate in the closest row with the nearest column
-        const sortedByRowDiff = [...candidates].sort((a, b) => {
-          const rowDiffA = Math.abs(a.row - current.row);
-          const rowDiffB = Math.abs(b.row - current.row);
-          if (rowDiffA !== rowDiffB) return rowDiffA - rowDiffB;
-          return Math.abs(a.col - current.col) - Math.abs(b.col - current.col);
-        });
-        target = sortedByRowDiff[0];
-      } else {
-        // Horizontal: closest in same row
-        const sorted = [...candidates].sort(
-          (a, b) => Math.abs(a.col - current.col) - Math.abs(b.col - current.col)
-        );
-        target = sorted[0];
-      }
+        return distA - distB;
+      });
 
-      target.el.focus();
+      candidates[0].el.focus();
     },
     [getFocusables]
   );
