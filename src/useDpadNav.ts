@@ -36,7 +36,7 @@ export function useDpadNav() {
         y: current.rect.top + current.rect.height / 2,
       };
 
-      const scoredCandidates: { f: FocusableElement; score: number }[] = [];
+      const candidates: { f: FocusableElement; dist: number; dx: number; dy: number }[] = [];
 
       for (let i = 0; i < focusables.length; i++) {
         if (i === currentIndex) continue;
@@ -49,47 +49,49 @@ export function useDpadNav() {
         const dx = candCenter.x - curCenter.x;
         const dy = candCenter.y - curCenter.y;
 
-        let isValidDirection = false;
-        let score = 0;
+        let isValid = false;
 
         if (direction === 'ArrowRight') {
-          // Estrictamente a la derecha y dentro del margen de la misma fila (evita saltar al header)
-          if (dx > 5 && Math.abs(dy) < 120) {
-            isValidDirection = true;
-            score = dx + Math.abs(dy) * 3;
-          }
+          // Estrictamente a la derecha y dentro de la misma línea horizontal
+          isValid = dx > 5 && Math.abs(dy) < 80;
         } else if (direction === 'ArrowLeft') {
-          // Estrictamente a la izquierda y dentro del margen de la misma fila
-          if (dx < -5 && Math.abs(dy) < 120) {
-            isValidDirection = true;
-            score = -dx + Math.abs(dy) * 3;
-          }
+          // Estrictamente a la izquierda y dentro de la misma línea horizontal
+          isValid = dx < -5 && Math.abs(dy) < 80;
         } else if (direction === 'ArrowDown') {
-          // Hacia abajo entre filas
-          if (dy > 5) {
-            isValidDirection = true;
-            score = dy + Math.abs(dx) * 0.5;
-          }
+          // Hacia abajo: debe estar en una fila inferior (dy > 20) y no tan desplazado horizontalmente
+          isValid = dy > 20 && dy < 350 && Math.abs(dx) < 300;
         } else if (direction === 'ArrowUp') {
-          // Hacia arriba entre filas
-          if (dy < -5) {
-            isValidDirection = true;
-            score = -dy + Math.abs(dx) * 0.5;
-          }
+          // Hacia arriba: debe estar en una fila superior (dy < -20)
+          isValid = dy < -20 && dy > -350 && Math.abs(dx) < 300;
         }
 
-        if (isValidDirection) {
-          scoredCandidates.push({ f, score });
+        if (isValid) {
+          const dist = Math.hypot(dx, dy);
+          candidates.push({ f, dist, dx, dy });
         }
       }
 
-      if (scoredCandidates.length === 0) {
+      if (candidates.length === 0) {
         return;
       }
 
-      // Ordenar por el menor costo (el elemento más cercano y mejor alineado en esa dirección)
-      scoredCandidates.sort((a, b) => a.score - b.score);
-      scoredCandidates[0].f.el.focus();
+      if (direction === 'ArrowDown' || direction === 'ArrowUp') {
+        // En movimiento vertical, filtramos prioritariamente las tarjetas de la *siguiente* fila inmediata
+        const minDy = direction === 'ArrowDown'
+          ? Math.min(...candidates.map((c) => c.dy))
+          : Math.max(...candidates.map((c) => c.dy));
+
+        // Tolerancia de 50px para capturar todas las columnas de esa misma fila exacta y descartar las de abajo
+        const rowCandidates = candidates.filter((c) => Math.abs(c.dy - minDy) < 60);
+
+        // De esa fila inmediata, elegimos la que esté más alineada horizontalmente con el elemento actual
+        rowCandidates.sort((a, b) => Math.abs(a.dx) - Math.abs(b.dx));
+        rowCandidates[0].f.el.focus();
+      } else {
+        // En movimiento horizontal, elegimos la tarjeta más cercana en la misma fila
+        candidates.sort((a, b) => a.dist - b.dist);
+        candidates[0].f.el.focus();
+      }
     },
     [getFocusables]
   );
