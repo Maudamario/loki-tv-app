@@ -4,6 +4,7 @@ import { useDpadNav } from './useDpadNav';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen, ExpiredScreen } from './screens/DashboardScreen';
 import { AdminPanel } from './screens/AdminPanel';
+import { VirtualMouse } from './VirtualMouse'; // <--- 1. Importas el cursor virtual
 
 type Route = 'app' | 'admin';
 
@@ -25,7 +26,7 @@ function AppContent() {
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+  }, [], );
 
   const navigateAdmin = () => {
     window.location.hash = '/admin';
@@ -55,6 +56,7 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
+      <VirtualMouse /> {/* <--- 2. Lo colocas aquí dentro para que esté activo en todo momento */}
       <AppContent />
     </AuthProvider>
   );
