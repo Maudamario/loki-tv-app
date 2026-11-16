@@ -6,6 +6,10 @@ export interface AppUser {
   expirationDate?: string;
   /** IDs de documentos de la colección apps que este usuario puede descargar. */
   allowedApps?: string[];
+  /** Cantidad máxima de dispositivos simultáneos autorizados (por defecto 1). */
+  maxDevices?: number;
+  /** Lista de IDs de dispositivos activos actualmente. */
+  activeSessions?: string[];
 }
 
 export interface AppItem {

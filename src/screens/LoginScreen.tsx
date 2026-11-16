@@ -10,7 +10,7 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onNavigateAdmin }: LoginScreenProps) {
-  const { login, loading } = useAuth();
+  const { login, loading, kickedMessage, clearKickedMessage } = useAuth();
   const { move } = useDpadNav();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +25,7 @@ export function LoginScreen({ onNavigateAdmin }: LoginScreenProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearKickedMessage();
     if (!username.trim() || !password.trim()) {
       setError('Por favor complete todos los campos');
       return;
@@ -49,6 +50,8 @@ export function LoginScreen({ onNavigateAdmin }: LoginScreenProps) {
     }
   };
 
+  const displayError = error || kickedMessage;
+
   return (
     <div className="min-h-screen bg-gradient-loki flex flex-col items-center justify-center p-8 animate-fade-in">
       {/* Background accent */}
@@ -72,10 +75,10 @@ export function LoginScreen({ onNavigateAdmin }: LoginScreenProps) {
             Ingrese sus credenciales para acceder
           </p>
 
-          {error && (
+          {displayError && (
             <div className="mb-6 flex items-center gap-3 bg-loki-danger/10 border border-loki-danger/30 rounded-lg p-4 animate-fade-in">
               <AlertCircle className="text-loki-danger shrink-0" size={20} />
-              <span className="text-loki-danger text-sm">{error}</span>
+              <span className="text-loki-danger text-sm">{displayError}</span>
             </div>
           )}
 

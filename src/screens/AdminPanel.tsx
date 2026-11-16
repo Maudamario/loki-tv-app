@@ -32,6 +32,7 @@ import {
   FileArchive,
   AlertCircle,
   Loader2,
+  Tv,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -191,6 +192,7 @@ const emptyUserForm = {
   username: '',
   password: '',
   expirationDate: '',
+  maxDevices: 1,
   allowedApps: [] as string[],
 };
 
@@ -202,6 +204,8 @@ function UsersManager() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPassword, setEditPassword] = useState('');
+  const [editingDevicesId, setEditingDevicesId] = useState<string | null>(null);
+  const [editMaxDevices, setEditMaxDevices] = useState<number>(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [appsUserId, setAppsUserId] = useState<string | null>(null);
   const [draftApps, setDraftApps] = useState<string[]>([]);
@@ -243,6 +247,7 @@ function UsersManager() {
         password: form.password.trim(),
         isActive: true,
         expirationDate: form.expirationDate || undefined,
+        maxDevices: Math.max(1, Number(form.maxDevices) || 1),
         allowedApps: form.allowedApps,
       });
       setForm(emptyUserForm);
@@ -292,6 +297,17 @@ function UsersManager() {
     setEditPassword('');
   };
 
+  const handleSaveMaxDevices = async (user: AppUser) => {
+    const safeLimit = Math.max(1, Number(editMaxDevices) || 1);
+    const currentSessions = Array.isArray(user.activeSessions) ? user.activeSessions : [];
+    const trimmedSessions = currentSessions.slice(-safeLimit);
+    await updateUser(user.id, {
+      maxDevices: safeLimit,
+      activeSessions: trimmedSessions,
+    });
+    setEditingDevicesId(null);
+  };
+
   const filtered = users.filter((u) =>
     u.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -324,17 +340,32 @@ function UsersManager() {
                 placeholder="contraseña"
               />
             </FormField>
-            <FormField label="Fecha de Expiración (opcional)">
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={16} />
-                <input
-                  type="date"
-                  value={form.expirationDate}
-                  onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
-                  className="form-input pl-10"
-                />
-              </div>
-            </FormField>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Dispositivos permitidos">
+                <div className="relative">
+                  <Tv className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={16} />
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={form.maxDevices}
+                    onChange={(e) => setForm({ ...form, maxDevices: Number(e.target.value) })}
+                    className="form-input pl-10"
+                  />
+                </div>
+              </FormField>
+              <FormField label="Expiración (opcional)">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={16} />
+                  <input
+                    type="date"
+                    value={form.expirationDate}
+                    onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
+                    className="form-input pl-10"
+                  />
+                </div>
+              </FormField>
+            </div>
             <FormField label="APKs asignadas">
               <AppCheckList apps={apps} selected={form.allowedApps} onToggle={toggleFormApp} />
             </FormField>
@@ -373,83 +404,127 @@ function UsersManager() {
           <p className="text-center text-loki-gray py-20">No hay usuarios</p>
         ) : (
           <div className="space-y-3">
-            {filtered.map((user) => (
-              <div
-                key={user.id}
-                className="bg-loki-dark border border-loki-border rounded-xl p-4 flex flex-wrap items-center gap-4 hover:border-loki-border/80 transition-colors"
-              >
-                {/* Info */}
-                <div className="flex-1 min-w-[150px]">
-                  <p className="font-semibold text-loki-white">{user.username}</p>
-                  {user.expirationDate && (
-                    <p className="text-xs text-loki-gray-dim flex items-center gap-1 mt-1">
-                      <Calendar size={12} />
-                      Expira: {user.expirationDate}
-                    </p>
-                  )}
-                </div>
-
-                {/* Toggle */}
-                <button
-                  onClick={() => handleToggle(user)}
-                  className="flex items-center gap-2 tv-focusable"
+            {filtered.map((user) => {
+              const limit = user.maxDevices ?? 1;
+              const activeCount = Array.isArray(user.activeSessions) ? user.activeSessions.length : 0;
+              return (
+                <div
+                  key={user.id}
+                  className="bg-loki-dark border border-loki-border rounded-xl p-4 flex flex-wrap items-center gap-4 hover:border-loki-border/80 transition-colors"
                 >
-                  {user.isActive ? (
-                    <ToggleRight className="text-loki-green" size={32} />
-                  ) : (
-                    <ToggleLeft className="text-loki-gray-dim" size={32} />
-                  )}
-                  <span className={`text-xs font-medium ${user.isActive ? 'text-loki-green' : 'text-loki-gray-dim'}`}>
-                    {user.isActive ? 'Activo' : 'Inactivo'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openApps(user)}
-                  className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
-                >
-                  <Package size={16} />
-                  Apps
-                </button>
-
-                {/* Edit password */}
-                {editingId === user.id ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editPassword}
-                      onChange={(e) => setEditPassword(e.target.value)}
-                      placeholder="Nueva clave"
-                      autoFocus
-                      className="bg-loki-black border border-loki-green rounded-lg px-3 py-1.5 text-sm w-28 tv-focusable focus:outline-none"
-                    />
-                    <button onClick={() => handleSavePassword(user)} className="text-loki-green hover:scale-110 transition-transform">
-                      <Check size={20} />
-                    </button>
-                    <button onClick={() => { setEditingId(null); setEditPassword(''); }} className="text-loki-danger hover:scale-110 transition-transform">
-                      <X size={20} />
-                    </button>
+                  {/* Info */}
+                  <div className="flex-1 min-w-[150px]">
+                    <p className="font-semibold text-loki-white">{user.username}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-loki-gray-dim">
+                      {user.expirationDate && (
+                        <span className="flex items-center gap-1">
+                          <Calendar size={12} />
+                          Expira: {user.expirationDate}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 text-loki-green/80">
+                        <Tv size={12} />
+                        {activeCount}/{limit} TVs activas
+                      </span>
+                    </div>
                   </div>
-                ) : (
+
+                  {/* Toggle */}
                   <button
-                    onClick={() => { setEditingId(user.id); setEditPassword(''); }}
+                    onClick={() => handleToggle(user)}
+                    className="flex items-center gap-2 tv-focusable"
+                  >
+                    {user.isActive ? (
+                      <ToggleRight className="text-loki-green" size={32} />
+                    ) : (
+                      <ToggleLeft className="text-loki-gray-dim" size={32} />
+                    )}
+                    <span className={`text-xs font-medium ${user.isActive ? 'text-loki-green' : 'text-loki-gray-dim'}`}>
+                      {user.isActive ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </button>
+
+                  {/* Edit maxDevices */}
+                  {editingDevicesId === user.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={editMaxDevices}
+                        onChange={(e) => setEditMaxDevices(Number(e.target.value))}
+                        autoFocus
+                        className="bg-loki-black border border-loki-green rounded-lg px-2 py-1 text-sm w-16 tv-focusable focus:outline-none"
+                      />
+                      <button onClick={() => handleSaveMaxDevices(user)} className="text-loki-green hover:scale-110 transition-transform">
+                        <Check size={18} />
+                      </button>
+                      <button onClick={() => setEditingDevicesId(null)} className="text-loki-danger hover:scale-110 transition-transform">
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDevicesId(user.id);
+                        setEditMaxDevices(limit);
+                      }}
+                      className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                      title="Cambiar límite de TVs permitidas"
+                    >
+                      <Tv size={16} />
+                      {limit} {limit === 1 ? 'TV' : 'TVs'}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => openApps(user)}
                     className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
                   >
-                    <Pencil size={16} />
-                    Clave
+                    <Package size={16} />
+                    Apps
                   </button>
-                )}
 
-                {/* Delete */}
-                <button
-                  onClick={() => handleDelete(user)}
-                  className="text-loki-gray hover:text-loki-danger transition-colors tv-focusable"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
+                  {/* Edit password */}
+                  {editingId === user.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="Nueva clave"
+                        autoFocus
+                        className="bg-loki-black border border-loki-green rounded-lg px-3 py-1.5 text-sm w-28 tv-focusable focus:outline-none"
+                      />
+                      <button onClick={() => handleSavePassword(user)} className="text-loki-green hover:scale-110 transition-transform">
+                        <Check size={20} />
+                      </button>
+                      <button onClick={() => { setEditingId(null); setEditPassword(''); }} className="text-loki-danger hover:scale-110 transition-transform">
+                        <X size={20} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingId(user.id); setEditPassword(''); }}
+                      className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                    >
+                      <Pencil size={16} />
+                      Clave
+                    </button>
+                  )}
+
+                  {/* Delete */}
+                  <button
+                    onClick={() => handleDelete(user)}
+                    className="text-loki-gray hover:text-loki-danger transition-colors tv-focusable"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

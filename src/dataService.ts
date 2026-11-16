@@ -39,6 +39,48 @@ export async function authenticateUser(
   );
 }
 
+/** Registra este dispositivo en Firestore respetando el límite maxDevices (FIFO). */
+export async function registerUserSession(user: AppUser, deviceId: string): Promise<void> {
+  const maxDevices = Math.max(1, user.maxDevices ?? 1);
+  const current = Array.isArray(user.activeSessions) ? [...user.activeSessions] : [];
+  const filtered = current.filter((id) => id !== deviceId);
+  filtered.push(deviceId);
+  const nextSessions = filtered.slice(-maxDevices);
+
+  if (hasFirebaseConfig && db) {
+    await updateDoc(doc(db, usersCol, user.id), { activeSessions: nextSessions });
+    return;
+  }
+  const idx = mockUsers.findIndex((u) => u.id === user.id);
+  if (idx >= 0) mockUsers[idx].activeSessions = nextSessions;
+}
+
+/** Escucha cambios en tiempo real en las sesiones activas del usuario para expulsar excesos. */
+export function subscribeUserSession(
+  userId: string,
+  deviceId: string,
+  onKicked: () => void
+): Unsubscribe | (() => void) {
+  if (hasFirebaseConfig && db) {
+    return onSnapshot(doc(db, usersCol, userId), (snapshot) => {
+      if (!snapshot.exists()) {
+        onKicked();
+        return;
+      }
+      const data = snapshot.data() as Partial<AppUser>;
+      if (data.isActive === false) {
+        onKicked();
+        return;
+      }
+      const sessions = data.activeSessions;
+      if (Array.isArray(sessions) && !sessions.includes(deviceId)) {
+        onKicked();
+      }
+    });
+  }
+  return () => {};
+}
+
 export function subscribeUsers(cb: UsersCallback): Unsubscribe | (() => void) {
   if (hasFirebaseConfig && db) {
     return onSnapshot(collection(db, usersCol), (snapshot) => {
@@ -93,9 +135,9 @@ export function subscribeApps(cb: AppsCallback): Unsubscribe | (() => void) {
   return () => {};
 }
 
-type UserField = string | boolean | string[];
+type UserField = string | boolean | number | string[];
 
-/** Quita `undefined` para que Firestore persista `allowedApps` y el resto de campos. */
+/** Quita `undefined` para que Firestore persista todos los campos correctamente. */
 function userPayload(data: Partial<Omit<AppUser, 'id'>>): Record<string, UserField> {
   const payload: Record<string, UserField> = {};
   if (data.username !== undefined) payload.username = data.username;
@@ -103,6 +145,8 @@ function userPayload(data: Partial<Omit<AppUser, 'id'>>): Record<string, UserFie
   if (data.isActive !== undefined) payload.isActive = data.isActive;
   if (data.expirationDate !== undefined) payload.expirationDate = data.expirationDate;
   if (data.allowedApps !== undefined) payload.allowedApps = [...data.allowedApps];
+  if (data.maxDevices !== undefined) payload.maxDevices = Math.max(1, Number(data.maxDevices) || 1);
+  if (data.activeSessions !== undefined) payload.activeSessions = [...data.activeSessions];
   return payload;
 }
 
@@ -112,6 +156,8 @@ export async function addUser(
   const payload = userPayload({
     ...user,
     allowedApps: user.allowedApps ?? [],
+    maxDevices: user.maxDevices ?? 1,
+    activeSessions: [],
   });
   if (hasFirebaseConfig && db) {
     const ref = await addDoc(collection(db, usersCol), payload);
