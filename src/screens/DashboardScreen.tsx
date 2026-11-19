@@ -3,7 +3,16 @@ import { useAuth } from '../authContext';
 import { subscribeAllowedApps, subscribeApps } from '../dataService';
 import type { AppItem } from '../types';
 import { Logo } from '../components/Logo';
-import { Download, Package, LogOut, AlertTriangle, Loader2, FileArchive, CheckCircle2 } from 'lucide-react';
+import {
+  Download,
+  Package,
+  LogOut,
+  AlertTriangle,
+  Loader2,
+  FileArchive,
+  CheckCircle2,
+  ExternalLink,
+} from 'lucide-react';
 
 interface DashboardScreenProps {
   onLogout: () => void;
@@ -121,42 +130,65 @@ function AppCard({ app }: { app: AppItem }) {
   const [progress, setProgress] = useState<number>(0);
   const [statusText, setStatusText] = useState<string>('');
   const timerRef = useRef<number | null>(null);
+  const finishTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
+      if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
     };
   }, []);
 
-  const triggerDirectLink = (url: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const launchDownload = (url: string) => {
+    // 1) Intento de navegación directa en la ventana actual o enlace real
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download', `${app.name.replace(/\s+/g, '_')}.apk`);
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      // Ignorar si el navegador bloquea DOM synthetic click
+    }
+
+    // 2) En muchos WebViews de Fire TV / Android, asignar window.location.href dispara el DownloadManager nativo
+    window.setTimeout(() => {
+      try {
+        window.location.assign(url);
+      } catch {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    }, 150);
   };
 
   const handleStartDownload = async () => {
     if (!app.downloadUrl || downloading) return;
-    setDownloading(true);
-    setProgress(8);
-    setStatusText('Iniciando descarga...');
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
 
-    let simulated = 8;
+    setDownloading(true);
+    setProgress(12);
+    setStatusText('Preparando enlace APK...');
+
+    let currentPct = 12;
     timerRef.current = window.setInterval(() => {
-      simulated = Math.min(92, simulated + 7);
-      setProgress((prev) => Math.max(prev, simulated));
-    }, 250);
+      currentPct = Math.min(88, currentPct + 14);
+      setProgress(currentPct);
+      setStatusText(`Solicitando descarga... ${currentPct}%`);
+    }, 220);
 
     try {
-      const response = await fetch(app.downloadUrl);
-      if (!response.ok) throw new Error('HTTP error');
+      // Intentar descarga con progreso real solo si el origen permite CORS + stream
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 3500);
+      const response = await fetch(app.downloadUrl, { signal: controller.signal, mode: 'cors' });
+      window.clearTimeout(timeoutId);
 
       const contentLength = Number(response.headers.get('content-length') || 0);
-      if (response.body && contentLength > 0) {
+      if (response.ok && response.body && contentLength > 0) {
         if (timerRef.current) {
           window.clearInterval(timerRef.current);
           timerRef.current = null;
@@ -173,18 +205,25 @@ function AppCard({ app }: { app: AppItem }) {
             received += value.length;
             const pct = Math.min(99, Math.round((received / contentLength) * 100));
             setProgress(pct);
-            setStatusText(`Descargando... ${pct}%`);
+            setStatusText(`Descargando APK... ${pct}%`);
           }
         }
 
         const blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
         const blobUrl = URL.createObjectURL(blob);
         setProgress(100);
-        setStatusText('Descarga completa — abriendo instalador');
-        triggerDirectLink(blobUrl);
-        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+        setStatusText('Descarga lista — abriendo archivo...');
+        launchDownload(blobUrl);
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 20000);
       } else {
-        throw new Error('Fallback a descarga directa');
+        // Servidor externo (ej. GitHub/Drive) sin CORS legible: lanzar URL directa real
+        if (timerRef.current) {
+          window.clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        setProgress(100);
+        setStatusText('Iniciando descarga directa en el dispositivo...');
+        launchDownload(app.downloadUrl);
       }
     } catch {
       if (timerRef.current) {
@@ -192,14 +231,14 @@ function AppCard({ app }: { app: AppItem }) {
         timerRef.current = null;
       }
       setProgress(100);
-      setStatusText('Enviando descarga al dispositivo...');
-      triggerDirectLink(app.downloadUrl);
+      setStatusText('Abriendo enlace directo de descarga...');
+      launchDownload(app.downloadUrl);
     } finally {
-      window.setTimeout(() => {
+      finishTimerRef.current = window.setTimeout(() => {
         setDownloading(false);
         setProgress(0);
         setStatusText('');
-      }, 2200);
+      }, 2500);
     }
   };
 
@@ -273,6 +312,18 @@ function AppCard({ app }: { app: AppItem }) {
             </>
           )}
         </button>
+
+        {app.downloadUrl && (
+          <a
+            href={app.downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center justify-center gap-1 text-[11px] text-loki-gray hover:text-loki-green transition-colors"
+          >
+            <span>Abrir enlace directo</span>
+            <ExternalLink size={12} />
+          </a>
+        )}
       </div>
     </div>
   );
