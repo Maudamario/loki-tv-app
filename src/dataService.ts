@@ -6,6 +6,7 @@ import {
   deleteDoc,
   getDocs,
   onSnapshot,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db, hasFirebaseConfig } from './firebase';
@@ -33,13 +34,11 @@ export async function authenticateUser(
     }
     return null;
   }
-  // Mock fallback
   return (
     mockUsers.find((u) => u.username === username && u.password === password) ?? null
   );
 }
 
-/** Registra este dispositivo en Firestore respetando el límite maxDevices (FIFO). */
 export async function registerUserSession(user: AppUser, deviceId: string): Promise<void> {
   const maxDevices = Math.max(1, user.maxDevices ?? 1);
   const current = Array.isArray(user.activeSessions) ? [...user.activeSessions] : [];
@@ -55,7 +54,6 @@ export async function registerUserSession(user: AppUser, deviceId: string): Prom
   if (idx >= 0) mockUsers[idx].activeSessions = nextSessions;
 }
 
-/** Escucha cambios en tiempo real en las sesiones activas del usuario para expulsar excesos. */
 export function subscribeUserSession(
   userId: string,
   deviceId: string,
@@ -92,12 +90,10 @@ export function subscribeUsers(cb: UsersCallback): Unsubscribe | (() => void) {
       );
     });
   }
-  // Mock fallback
   cb(mockUsers);
   return () => {};
 }
 
-/** Lee allowedApps del documento del usuario. Si el campo no existe, devuelve []. */
 export function subscribeAllowedApps(
   userId: string,
   cb: (allowedApps: string[]) => void
@@ -130,19 +126,18 @@ export function subscribeApps(cb: AppsCallback): Unsubscribe | (() => void) {
       );
     });
   }
-  // Mock fallback
   cb(mockApps);
   return () => {};
 }
 
 type UserField = string | boolean | number | string[];
 
-/** Quita `undefined` para que Firestore persista todos los campos correctamente. */
 function userPayload(data: Partial<Omit<AppUser, 'id'>>): Record<string, UserField> {
   const payload: Record<string, UserField> = {};
   if (data.username !== undefined) payload.username = data.username;
   if (data.password !== undefined) payload.password = data.password;
   if (data.isActive !== undefined) payload.isActive = data.isActive;
+  if (data.startDate !== undefined) payload.startDate = data.startDate;
   if (data.expirationDate !== undefined) payload.expirationDate = data.expirationDate;
   if (data.allowedApps !== undefined) payload.allowedApps = [...data.allowedApps];
   if (data.maxDevices !== undefined) payload.maxDevices = Math.max(1, Number(data.maxDevices) || 1);
@@ -153,8 +148,10 @@ function userPayload(data: Partial<Omit<AppUser, 'id'>>): Record<string, UserFie
 export async function addUser(
   user: Omit<AppUser, 'id'>
 ): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
   const payload = userPayload({
     ...user,
+    startDate: user.startDate || today,
     allowedApps: user.allowedApps ?? [],
     maxDevices: user.maxDevices ?? 1,
     activeSessions: [],
@@ -181,6 +178,22 @@ export async function updateUser(
   if (idx >= 0) {
     mockUsers[idx] = { ...mockUsers[idx], ...payload };
   }
+}
+
+/** Habilita o deshabilita todos los usuarios existentes a la vez. */
+export async function setAllUsersActive(isActive: boolean): Promise<void> {
+  if (hasFirebaseConfig && db) {
+    const snapshot = await getDocs(collection(db, usersCol));
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((d) => {
+      batch.update(d.ref, { isActive });
+    });
+    await batch.commit();
+    return;
+  }
+  mockUsers.forEach((u) => {
+    u.isActive = isActive;
+  });
 }
 
 export async function deleteUser(id: string): Promise<void> {

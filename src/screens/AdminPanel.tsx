@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode, type FormEvent } from 'react';
 import {
   subscribeUsers,
   subscribeApps,
   addUser,
   updateUser,
   deleteUser,
+  setAllUsersActive,
   addApp,
   updateApp,
   deleteApp,
@@ -33,6 +34,7 @@ import {
   AlertCircle,
   Loader2,
   Tv,
+  Clock,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -53,7 +55,7 @@ export function AdminPanel({ onExit }: AdminPanelProps) {
     passwordRef.current?.focus();
   }, [authed]);
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = (e: FormEvent) => {
     e.preventDefault();
     if (password === ADMIN_PASSWORD) {
       setAuthed(true);
@@ -65,16 +67,16 @@ export function AdminPanel({ onExit }: AdminPanelProps) {
 
   if (!authed) {
     return (
-      <div className="min-h-screen bg-gradient-loki flex flex-col items-center justify-center p-8 animate-fade-in">
+      <div className="min-h-screen bg-gradient-loki flex flex-col items-center justify-center p-6 sm:p-8 animate-fade-in">
         <div className="pointer-events-none fixed inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-loki-green/5 rounded-full blur-[120px]" />
         </div>
         <div className="relative z-10 w-full max-w-md">
-          <div className="flex justify-center mb-10">
+          <div className="flex justify-center mb-8 sm:mb-10">
             <Logo size="lg" />
           </div>
 
-          <div className="bg-loki-card border border-loki-border rounded-2xl p-8 shadow-2xl">
+          <div className="bg-loki-card border border-loki-border rounded-2xl p-6 sm:p-8 shadow-2xl">
             <div className="flex items-center gap-3 mb-6">
               <Lock className="text-loki-green" size={24} />
               <h2 className="text-xl font-semibold">Panel de Administración</h2>
@@ -96,12 +98,12 @@ export function AdminPanel({ onExit }: AdminPanelProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoFocus
-                  className="w-full bg-loki-dark border-2 border-loki-border rounded-xl px-4 py-3.5 text-lg tv-focusable focus:outline-none"
+                  className="w-full bg-loki-dark border-2 border-loki-border rounded-xl px-4 py-3 text-base sm:text-lg focus:outline-none focus:border-loki-green"
                 />
               </div>
               <button
                 type="submit"
-                className="w-full bg-loki-green text-loki-black font-bold py-3.5 rounded-xl tv-focusable hover:bg-loki-green/90 transition-colors"
+                className="w-full bg-loki-green text-loki-black font-bold py-3.5 rounded-xl hover:bg-loki-green/90 transition-colors"
               >
                 ACCEDER
               </button>
@@ -122,17 +124,18 @@ export function AdminPanel({ onExit }: AdminPanelProps) {
   return (
     <div className="min-h-screen bg-gradient-loki flex flex-col animate-fade-in">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-loki-black/90 backdrop-blur-xl border-b border-loki-border">
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+      <header className="sticky top-0 z-50 bg-loki-black/95 backdrop-blur-xl border-b border-loki-border">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 py-3.5 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-4 sm:gap-6">
             <Logo size="md" />
             <span className="hidden sm:inline text-loki-gray-dim text-sm border-l border-loki-border pl-6">
               Panel Admin
             </span>
           </div>
           <button
+            type="button"
             onClick={onExit}
-            className="flex items-center gap-2 px-4 py-2 bg-loki-card border-2 border-loki-border hover:border-loki-green rounded-lg tv-focusable text-sm transition-colors"
+            className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-loki-card border border-loki-border hover:border-loki-green rounded-lg text-xs sm:text-sm transition-colors"
           >
             <ArrowLeft size={16} />
             Salir
@@ -141,8 +144,8 @@ export function AdminPanel({ onExit }: AdminPanelProps) {
       </header>
 
       {/* Tabs */}
-      <div className="sticky top-[73px] z-40 bg-loki-black/80 backdrop-blur-xl border-b border-loki-border">
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 flex gap-2">
+      <div className="sticky top-[65px] sm:top-[73px] z-40 bg-loki-black/90 backdrop-blur-xl border-b border-loki-border">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 flex gap-2 overflow-x-auto">
           <TabButton active={tab === 'users'} onClick={() => setTab('users')} icon={<Users size={18} />}>
             Gestión de Usuarios
           </TabButton>
@@ -153,7 +156,7 @@ export function AdminPanel({ onExit }: AdminPanelProps) {
       </div>
 
       {/* Content */}
-      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 lg:px-10 py-8">
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
         {tab === 'users' ? <UsersManager /> : <AppsManager />}
       </main>
     </div>
@@ -168,13 +171,14 @@ function TabButton({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+      className={`flex items-center gap-2 px-4 sm:px-6 py-3.5 sm:py-4 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
         active
           ? 'border-loki-green text-loki-green'
           : 'border-transparent text-loki-gray hover:text-loki-white'
@@ -191,10 +195,35 @@ function TabButton({
 const emptyUserForm = {
   username: '',
   password: '',
+  startDate: '',
   expirationDate: '',
   maxDevices: 1,
   allowedApps: [] as string[],
 };
+
+function formatTenure(startDate?: string): string {
+  if (!startDate) return '';
+  const start = new Date(`${startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return `Inicio: ${startDate}`;
+
+  const now = new Date();
+  const totalMonths = Math.max(
+    0,
+    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
+  );
+
+  if (totalMonths < 1) {
+    return `Inicio: ${startDate} (Menos de 1 mes)`;
+  }
+  if (totalMonths < 12) {
+    return `Inicio: ${startDate} (${totalMonths} ${totalMonths === 1 ? 'mes' : 'meses'})`;
+  }
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  return `Inicio: ${startDate} (${years} ${years === 1 ? 'año' : 'años'}${
+    months > 0 ? ` ${months}m` : ''
+  })`;
+}
 
 function UsersManager() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -202,6 +231,7 @@ function UsersManager() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyUserForm);
   const [saving, setSaving] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPassword, setEditPassword] = useState('');
   const [editingDevicesId, setEditingDevicesId] = useState<string | null>(null);
@@ -237,15 +267,17 @@ function UsersManager() {
     }));
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.username.trim() || !form.password.trim()) return;
     setSaving(true);
     try {
+      const today = new Date().toISOString().slice(0, 10);
       await addUser({
         username: form.username.trim(),
         password: form.password.trim(),
         isActive: true,
+        startDate: form.startDate || today,
         expirationDate: form.expirationDate || undefined,
         maxDevices: Math.max(1, Number(form.maxDevices) || 1),
         allowedApps: form.allowedApps,
@@ -253,6 +285,21 @@ function UsersManager() {
       setForm(emptyUserForm);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleBulkToggle = async (activate: boolean) => {
+    if (users.length === 0 || bulkSaving) return;
+    const mensaje = activate
+      ? '¿Querés HABILITAR todos los usuarios de una vez?'
+      : '¿Querés DESHABILITAR todos los usuarios de una vez? Nadie podrá usar la app hasta reactivarlos.';
+    if (!confirm(mensaje)) return;
+
+    setBulkSaving(true);
+    try {
+      await setAllUsersActive(activate);
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -313,10 +360,10 @@ function UsersManager() {
   );
 
   return (
-    <div className="grid lg:grid-cols-[380px_1fr] gap-8">
+    <div className="grid lg:grid-cols-[390px_1fr] gap-6 lg:gap-8">
       {/* Create form */}
       <div className="space-y-6">
-        <div className="bg-loki-card border border-loki-border rounded-2xl p-6">
+        <div className="bg-loki-card border border-loki-border rounded-2xl p-5 sm:p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold mb-5">
             <Plus className="text-loki-green" size={20} />
             Nuevo Usuario
@@ -327,7 +374,7 @@ function UsersManager() {
                 type="text"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
-                className="form-input"
+                className="w-full bg-loki-dark border border-loki-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-loki-green"
                 placeholder="nombre_usuario"
               />
             </FormField>
@@ -336,43 +383,63 @@ function UsersManager() {
                 type="text"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="form-input"
+                className="w-full bg-loki-dark border border-loki-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-loki-green"
                 placeholder="contraseña"
               />
             </FormField>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Dispositivos permitidos">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FormField label="Inicio de actividades">
                 <div className="relative">
-                  <Tv className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={16} />
+                  <Calendar
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim pointer-events-none"
+                    size={15}
+                  />
                   <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={form.maxDevices}
-                    onChange={(e) => setForm({ ...form, maxDevices: Number(e.target.value) })}
-                    className="form-input pl-10"
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                    className="w-full bg-loki-dark border border-loki-border rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-loki-green"
                   />
                 </div>
               </FormField>
               <FormField label="Expiración (opcional)">
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={16} />
+                  <Calendar
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim pointer-events-none"
+                    size={15}
+                  />
                   <input
                     type="date"
                     value={form.expirationDate}
                     onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
-                    className="form-input pl-10"
+                    className="w-full bg-loki-dark border border-loki-border rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-loki-green"
                   />
                 </div>
               </FormField>
             </div>
+            <FormField label="Dispositivos permitidos">
+              <div className="relative">
+                <Tv
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim pointer-events-none"
+                  size={16}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={form.maxDevices}
+                  onChange={(e) => setForm({ ...form, maxDevices: Number(e.target.value) })}
+                  className="w-full bg-loki-dark border border-loki-border rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-loki-green"
+                />
+              </div>
+            </FormField>
             <FormField label="APKs asignadas">
               <AppCheckList apps={apps} selected={form.allowedApps} onToggle={toggleFormApp} />
             </FormField>
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-loki-green text-loki-black font-bold py-3 rounded-xl tv-focusable hover:bg-loki-green/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-loki-green text-loki-black font-bold py-3 rounded-xl hover:bg-loki-green/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
               Crear Usuario
@@ -381,19 +448,36 @@ function UsersManager() {
         </div>
       </div>
 
-      {/* Users table */}
-      <div className="bg-loki-card border border-loki-border rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-semibold">
-            Usuarios ({filtered.length})
-          </h3>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar..."
-            className="bg-loki-dark border border-loki-border rounded-lg px-3 py-2 text-sm w-40 tv-focusable focus:outline-none"
-          />
+      {/* Users list */}
+      <div className="bg-loki-card border border-loki-border rounded-2xl p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <h3 className="text-lg font-semibold">Usuarios ({filtered.length})</h3>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={bulkSaving || users.length === 0}
+              onClick={() => handleBulkToggle(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-loki-green/15 text-loki-green border border-loki-green/40 hover:bg-loki-green/25 disabled:opacity-40 transition-colors"
+            >
+              Habilitar todos
+            </button>
+            <button
+              type="button"
+              disabled={bulkSaving || users.length === 0}
+              onClick={() => handleBulkToggle(false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-loki-danger/15 text-loki-danger border border-loki-danger/40 hover:bg-loki-danger/25 disabled:opacity-40 transition-colors"
+            >
+              Deshabilitar todos
+            </button>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar..."
+              className="bg-loki-dark border border-loki-border rounded-lg px-3 py-1.5 text-sm w-36 sm:w-44 focus:outline-none focus:border-loki-green"
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -407,15 +491,23 @@ function UsersManager() {
             {filtered.map((user) => {
               const limit = user.maxDevices ?? 1;
               const activeCount = Array.isArray(user.activeSessions) ? user.activeSessions.length : 0;
+              const tenureText = formatTenure(user.startDate);
+
               return (
                 <div
                   key={user.id}
                   className="bg-loki-dark border border-loki-border rounded-xl p-4 flex flex-wrap items-center gap-4 hover:border-loki-border/80 transition-colors"
                 >
                   {/* Info */}
-                  <div className="flex-1 min-w-[150px]">
+                  <div className="flex-1 min-w-[180px]">
                     <p className="font-semibold text-loki-white">{user.username}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-loki-gray-dim">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-loki-gray-dim">
+                      {tenureText && (
+                        <span className="flex items-center gap-1 text-loki-gray">
+                          <Clock size={12} className="text-loki-green/80" />
+                          {tenureText}
+                        </span>
+                      )}
                       {user.expirationDate && (
                         <span className="flex items-center gap-1">
                           <Calendar size={12} />
@@ -429,17 +521,22 @@ function UsersManager() {
                     </div>
                   </div>
 
-                  {/* Toggle */}
+                  {/* Toggle individual */}
                   <button
+                    type="button"
                     onClick={() => handleToggle(user)}
-                    className="flex items-center gap-2 tv-focusable"
+                    className="flex items-center gap-2"
                   >
                     {user.isActive ? (
                       <ToggleRight className="text-loki-green" size={32} />
                     ) : (
                       <ToggleLeft className="text-loki-gray-dim" size={32} />
                     )}
-                    <span className={`text-xs font-medium ${user.isActive ? 'text-loki-green' : 'text-loki-gray-dim'}`}>
+                    <span
+                      className={`text-xs font-medium ${
+                        user.isActive ? 'text-loki-green' : 'text-loki-gray-dim'
+                      }`}
+                    >
                       {user.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                   </button>
@@ -454,12 +551,20 @@ function UsersManager() {
                         value={editMaxDevices}
                         onChange={(e) => setEditMaxDevices(Number(e.target.value))}
                         autoFocus
-                        className="bg-loki-black border border-loki-green rounded-lg px-2 py-1 text-sm w-16 tv-focusable focus:outline-none"
+                        className="bg-loki-black border border-loki-green rounded-lg px-2 py-1 text-sm w-16 focus:outline-none"
                       />
-                      <button onClick={() => handleSaveMaxDevices(user)} className="text-loki-green hover:scale-110 transition-transform">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMaxDevices(user)}
+                        className="text-loki-green hover:scale-110 transition-transform"
+                      >
                         <Check size={18} />
                       </button>
-                      <button onClick={() => setEditingDevicesId(null)} className="text-loki-danger hover:scale-110 transition-transform">
+                      <button
+                        type="button"
+                        onClick={() => setEditingDevicesId(null)}
+                        className="text-loki-danger hover:scale-110 transition-transform"
+                      >
                         <X size={18} />
                       </button>
                     </div>
@@ -470,7 +575,7 @@ function UsersManager() {
                         setEditingDevicesId(user.id);
                         setEditMaxDevices(limit);
                       }}
-                      className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                      className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm transition-colors"
                       title="Cambiar límite de TVs permitidas"
                     >
                       <Tv size={16} />
@@ -481,7 +586,7 @@ function UsersManager() {
                   <button
                     type="button"
                     onClick={() => openApps(user)}
-                    className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                    className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm transition-colors"
                   >
                     <Package size={16} />
                     Apps
@@ -496,19 +601,34 @@ function UsersManager() {
                         onChange={(e) => setEditPassword(e.target.value)}
                         placeholder="Nueva clave"
                         autoFocus
-                        className="bg-loki-black border border-loki-green rounded-lg px-3 py-1.5 text-sm w-28 tv-focusable focus:outline-none"
+                        className="bg-loki-black border border-loki-green rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none"
                       />
-                      <button onClick={() => handleSavePassword(user)} className="text-loki-green hover:scale-110 transition-transform">
+                      <button
+                        type="button"
+                        onClick={() => handleSavePassword(user)}
+                        className="text-loki-green hover:scale-110 transition-transform"
+                      >
                         <Check size={20} />
                       </button>
-                      <button onClick={() => { setEditingId(null); setEditPassword(''); }} className="text-loki-danger hover:scale-110 transition-transform">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditPassword('');
+                        }}
+                        className="text-loki-danger hover:scale-110 transition-transform"
+                      >
                         <X size={20} />
                       </button>
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setEditingId(user.id); setEditPassword(''); }}
-                      className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm tv-focusable transition-colors"
+                      type="button"
+                      onClick={() => {
+                        setEditingId(user.id);
+                        setEditPassword('');
+                      }}
+                      className="flex items-center gap-1 text-loki-gray hover:text-loki-green text-sm transition-colors"
                     >
                       <Pencil size={16} />
                       Clave
@@ -517,8 +637,9 @@ function UsersManager() {
 
                   {/* Delete */}
                   <button
+                    type="button"
                     onClick={() => handleDelete(user)}
-                    className="text-loki-gray hover:text-loki-danger transition-colors tv-focusable"
+                    className="text-loki-gray hover:text-loki-danger transition-colors"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -594,9 +715,7 @@ function UserAppsModal({
             <X size={20} />
           </button>
         </div>
-        {error && (
-          <p className="text-sm text-loki-danger mb-3">{error}</p>
-        )}
+        {error && <p className="text-sm text-loki-danger mb-3">{error}</p>}
         <AppCheckList apps={apps} selected={selected} onToggle={onToggle} />
       </div>
     </div>
@@ -671,7 +790,7 @@ function AppsManager() {
     setEditingId(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
     setSaving(true);
@@ -714,7 +833,11 @@ function AppsManager() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleQuickUpdate = async (app: AppItem, field: 'version' | 'downloadUrl', value: string) => {
+  const handleQuickUpdate = async (
+    app: AppItem,
+    field: 'version' | 'downloadUrl',
+    value: string
+  ) => {
     if (!value.trim()) return;
     await updateApp(app.id, { [field]: value.trim() });
   };
@@ -726,58 +849,112 @@ function AppsManager() {
   };
 
   return (
-    <div className="grid lg:grid-cols-[420px_1fr] gap-8">
+    <div className="grid lg:grid-cols-[420px_1fr] gap-6 lg:gap-8">
       {/* Form */}
-      <div className="bg-loki-card border border-loki-border rounded-2xl p-6 sticky top-[180px] self-start">
+      <div className="bg-loki-card border border-loki-border rounded-2xl p-5 sm:p-6 lg:sticky lg:top-[180px] self-start">
         <h3 className="flex items-center gap-2 text-lg font-semibold mb-5">
-          {editingId ? <Pencil className="text-loki-green" size={20} /> : <Plus className="text-loki-green" size={20} />}
+          {editingId ? (
+            <Pencil className="text-loki-green" size={20} />
+          ) : (
+            <Plus className="text-loki-green" size={20} />
+          )}
           {editingId ? 'Editar App' : 'Nueva App'}
         </h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="Nombre">
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="form-input" placeholder="LOKI Player" />
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full bg-loki-dark border border-loki-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-loki-green"
+              placeholder="LOKI Player"
+            />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Versión">
               <div className="relative">
-                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={14} />
-                <input type="text" value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })}
-                  className="form-input pl-9" placeholder="v2.4.1" />
+                <Tag
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim pointer-events-none"
+                  size={14}
+                />
+                <input
+                  type="text"
+                  value={form.version}
+                  onChange={(e) => setForm({ ...form, version: e.target.value })}
+                  className="w-full bg-loki-dark border border-loki-border rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-loki-green"
+                  placeholder="v2.4.1"
+                />
               </div>
             </FormField>
             <FormField label="Tamaño">
-              <input type="text" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
-                className="form-input" placeholder="45 MB" />
+              <input
+                type="text"
+                value={form.size}
+                onChange={(e) => setForm({ ...form, size: e.target.value })}
+                className="w-full bg-loki-dark border border-loki-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-loki-green"
+                placeholder="45 MB"
+              />
             </FormField>
           </div>
           <FormField label="Descripción">
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="form-input min-h-[80px] resize-y" placeholder="Breve descripción de la app" />
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="w-full bg-loki-dark border border-loki-border rounded-xl px-3.5 py-2.5 text-sm min-h-[80px] resize-y focus:outline-none focus:border-loki-green"
+              placeholder="Breve descripción de la app"
+            />
           </FormField>
           <FormField label="URL del Ícono">
             <div className="relative">
-              <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={14} />
-              <input type="url" value={form.iconUrl} onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
-                className="form-input pl-9" placeholder="https://..." />
+              <ImageIcon
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim pointer-events-none"
+                size={14}
+              />
+              <input
+                type="url"
+                value={form.iconUrl}
+                onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
+                className="w-full bg-loki-dark border border-loki-border rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-loki-green"
+                placeholder="https://..."
+              />
             </div>
           </FormField>
           <FormField label="URL de Descarga">
             <div className="relative">
-              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim" size={14} />
-              <input type="url" value={form.downloadUrl} onChange={(e) => setForm({ ...form, downloadUrl: e.target.value })}
-                className="form-input pl-9" placeholder="https://github.com/..." />
+              <Link2
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-loki-gray-dim pointer-events-none"
+                size={14}
+              />
+              <input
+                type="url"
+                value={form.downloadUrl}
+                onChange={(e) => setForm({ ...form, downloadUrl: e.target.value })}
+                className="w-full bg-loki-dark border border-loki-border rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-loki-green"
+                placeholder="https://github.com/..."
+              />
             </div>
           </FormField>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-loki-green text-loki-black font-bold py-3 rounded-xl tv-focusable hover:bg-loki-green/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-              {saving ? <Loader2 size={18} className="animate-spin" /> : editingId ? <Check size={18} /> : <Plus size={18} />}
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-loki-green text-loki-black font-bold py-3 rounded-xl hover:bg-loki-green/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : editingId ? (
+                <Check size={18} />
+              ) : (
+                <Plus size={18} />
+              )}
               {editingId ? 'Guardar' : 'Agregar'}
             </button>
             {editingId && (
-              <button type="button" onClick={resetForm}
-                className="px-4 py-3 bg-loki-dark border border-loki-border rounded-xl text-loki-gray hover:text-loki-white transition-colors">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-3 bg-loki-dark border border-loki-border rounded-xl text-loki-gray hover:text-loki-white transition-colors"
+              >
                 <X size={18} />
               </button>
             )}
@@ -786,10 +963,8 @@ function AppsManager() {
       </div>
 
       {/* Apps list */}
-      <div className="bg-loki-card border border-loki-border rounded-2xl p-6">
-        <h3 className="text-lg font-semibold mb-5">
-          APKs Cargadas ({apps.length})
-        </h3>
+      <div className="bg-loki-card border border-loki-border rounded-2xl p-5 sm:p-6">
+        <h3 className="text-lg font-semibold mb-5">APKs Cargadas ({apps.length})</h3>
 
         {loading ? (
           <div className="flex justify-center py-20">
@@ -872,7 +1047,7 @@ function AppAdminCard({
             </span>
             <span className="text-xs text-loki-gray-dim">{app.size}</span>
           </div>
-          <p className="text-sm text-loki-gray-dim mt-1 line-clamp-1">{app.description}</p>
+          <p className="text-sm text-loki-gray-dim mt-1 line-clamp-2">{app.description}</p>
 
           {/* Quick edit fields */}
           <div className="mt-3 space-y-2">
@@ -887,13 +1062,22 @@ function AppAdminCard({
                     onChange={(e) => setTempValue(e.target.value)}
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                    className="flex-1 bg-loki-black border border-loki-green rounded px-2 py-1 text-sm tv-focusable focus:outline-none"
+                    className="flex-1 bg-loki-black border border-loki-green rounded px-2 py-1 text-sm focus:outline-none"
                   />
-                  <button onClick={saveEdit} className="text-loki-green"><Check size={16} /></button>
-                  <button onClick={() => setEditingField(null)} className="text-loki-danger"><X size={16} /></button>
+                  <button type="button" onClick={saveEdit} className="text-loki-green">
+                    <Check size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingField(null)}
+                    className="text-loki-danger"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => startEdit('version')}
                   className="text-sm text-loki-gray hover:text-loki-green transition-colors"
                 >
@@ -913,13 +1097,22 @@ function AppAdminCard({
                     onChange={(e) => setTempValue(e.target.value)}
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                    className="flex-1 bg-loki-black border border-loki-green rounded px-2 py-1 text-xs tv-focusable focus:outline-none"
+                    className="flex-1 bg-loki-black border border-loki-green rounded px-2 py-1 text-xs focus:outline-none"
                   />
-                  <button onClick={saveEdit} className="text-loki-green"><Check size={16} /></button>
-                  <button onClick={() => setEditingField(null)} className="text-loki-danger"><X size={16} /></button>
+                  <button type="button" onClick={saveEdit} className="text-loki-green">
+                    <Check size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingField(null)}
+                    className="text-loki-danger"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => startEdit('downloadUrl')}
                   className="text-xs text-loki-gray hover:text-loki-green transition-colors truncate max-w-[300px]"
                 >
@@ -932,10 +1125,20 @@ function AppAdminCard({
 
         {/* Actions */}
         <div className="flex flex-col gap-2 shrink-0">
-          <button onClick={onEdit} className="text-loki-gray hover:text-loki-green transition-colors p-1" title="Editar">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-loki-gray hover:text-loki-green transition-colors p-1"
+            title="Editar"
+          >
             <Pencil size={18} />
           </button>
-          <button onClick={onDelete} className="text-loki-gray hover:text-loki-danger transition-colors p-1" title="Eliminar">
+          <button
+            type="button"
+            onClick={onDelete}
+            className="text-loki-gray hover:text-loki-danger transition-colors p-1"
+            title="Eliminar"
+          >
             <Trash2 size={18} />
           </button>
         </div>
@@ -946,7 +1149,7 @@ function AppAdminCard({
 
 // ==================== SHARED ====================
 
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
       <label className="block text-xs text-loki-gray mb-1.5 tracking-wide uppercase">{label}</label>

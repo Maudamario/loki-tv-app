@@ -1,19 +1,16 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './authContext';
-import { useDpadNav } from './useDpadNav';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen, ExpiredScreen } from './screens/DashboardScreen';
 import { AdminPanel } from './screens/AdminPanel';
-import { VirtualMouse } from './VirtualMouse'; // <--- 1. Importas el cursor virtual
+import { VirtualMouse } from './VirtualMouse';
 
 type Route = 'app' | 'admin';
 
 function AppContent() {
   const { user, logout } = useAuth();
   const [route, setRoute] = useState<Route>('app');
-  useDpadNav();
 
-  // Sync URL hash for /admin route
   useEffect(() => {
     const checkHash = () => {
       const hash = window.location.hash.slice(1);
@@ -26,7 +23,7 @@ function AppContent() {
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, [], );
+  }, []);
 
   const navigateAdmin = () => {
     window.location.hash = '/admin';
@@ -56,7 +53,7 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <VirtualMouse /> {/* <--- 2. Lo colocas aquí dentro para que esté activo en todo momento */}
+      <VirtualMouse />
       <AppContent />
     </AuthProvider>
   );

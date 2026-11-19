@@ -3,6 +3,8 @@ export interface AppUser {
   username: string;
   password: string;
   isActive: boolean;
+  /** Fecha de inicio de actividades / alta del cliente (YYYY-MM-DD). */
+  startDate?: string;
   expirationDate?: string;
   /** IDs de documentos de la colección apps que este usuario puede descargar. */
   allowedApps?: string[];
