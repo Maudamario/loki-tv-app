@@ -30,7 +30,7 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
       setAppsLoading(false);
     });
     return () => {
-      unsub();
+      if (typeof unsub === 'function') unsub();
     };
   }, []);
 
@@ -41,7 +41,7 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
     }
     const unsub = subscribeAllowedApps(user.id, setAllowedApps);
     return () => {
-      unsub();
+      if (typeof unsub === 'function') unsub();
     };
   }, [user?.id]);
 
@@ -129,117 +129,52 @@ function AppCard({ app }: { app: AppItem }) {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [statusText, setStatusText] = useState<string>('');
-  const timerRef = useRef<number | null>(null);
-  const finishTimerRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const resetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
+      if (intervalRef.current) window.clearInterval(intervalRef.current);
+      if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
     };
   }, []);
 
-  const launchDownload = (url: string) => {
-    // 1) Intento de navegación directa en la ventana actual o enlace real
-    try {
-      const a = document.createElement('a');
-      a.href = url;
-      a.setAttribute('download', `${app.name.replace(/\s+/g, '_')}.apk`);
-      a.rel = 'noopener noreferrer';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {
-      // Ignorar si el navegador bloquea DOM synthetic click
-    }
-
-    // 2) En muchos WebViews de Fire TV / Android, asignar window.location.href dispara el DownloadManager nativo
-    window.setTimeout(() => {
-      try {
-        window.location.assign(url);
-      } catch {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
-    }, 150);
-  };
-
-  const handleStartDownload = async () => {
+  const handleStartDownload = () => {
     if (!app.downloadUrl || downloading) return;
-    if (timerRef.current) window.clearInterval(timerRef.current);
-    if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
+    if (intervalRef.current) window.clearInterval(intervalRef.current);
+    if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
 
     setDownloading(true);
-    setProgress(12);
-    setStatusText('Preparando enlace APK...');
+    setProgress(20);
+    setStatusText('Iniciando descarga del APK...');
 
-    let currentPct = 12;
-    timerRef.current = window.setInterval(() => {
-      currentPct = Math.min(88, currentPct + 14);
-      setProgress(currentPct);
-      setStatusText(`Solicitando descarga... ${currentPct}%`);
-    }, 220);
-
-    try {
-      // Intentar descarga con progreso real solo si el origen permite CORS + stream
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 3500);
-      const response = await fetch(app.downloadUrl, { signal: controller.signal, mode: 'cors' });
-      window.clearTimeout(timeoutId);
-
-      const contentLength = Number(response.headers.get('content-length') || 0);
-      if (response.ok && response.body && contentLength > 0) {
-        if (timerRef.current) {
-          window.clearInterval(timerRef.current);
-          timerRef.current = null;
+    let stepPct = 20;
+    intervalRef.current = window.setInterval(() => {
+      stepPct += 25;
+      if (stepPct >= 100) {
+        if (intervalRef.current) {
+          window.clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
-        const reader = response.body.getReader();
-        const chunks: BlobPart[] = [];
-        let received = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(new Uint8Array(value));
-            received += value.length;
-            const pct = Math.min(99, Math.round((received / contentLength) * 100));
-            setProgress(pct);
-            setStatusText(`Descargando APK... ${pct}%`);
-          }
-        }
-
-        const blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
-        const blobUrl = URL.createObjectURL(blob);
         setProgress(100);
-        setStatusText('Descarga lista — abriendo archivo...');
-        launchDownload(blobUrl);
-        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 20000);
+        setStatusText('Enlace enviado al navegador / gestor de descargas');
       } else {
-        // Servidor externo (ej. GitHub/Drive) sin CORS legible: lanzar URL directa real
-        if (timerRef.current) {
-          window.clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        setProgress(100);
-        setStatusText('Iniciando descarga directa en el dispositivo...');
-        launchDownload(app.downloadUrl);
+        setProgress(stepPct);
+        setStatusText(`Preparando descarga... ${stepPct}%`);
       }
-    } catch {
-      if (timerRef.current) {
-        window.clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setProgress(100);
-      setStatusText('Abriendo enlace directo de descarga...');
-      launchDownload(app.downloadUrl);
-    } finally {
-      finishTimerRef.current = window.setTimeout(() => {
-        setDownloading(false);
-        setProgress(0);
-        setStatusText('');
-      }, 2500);
+    }, 180);
+
+    // Apertura directa compatible con Fire Stick / Silk / WebView
+    const opened = window.open(app.downloadUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.href = app.downloadUrl;
     }
+
+    resetTimerRef.current = window.setTimeout(() => {
+      setDownloading(false);
+      setProgress(0);
+      setStatusText('');
+    }, 2600);
   };
 
   return (
