@@ -37,6 +37,18 @@ if (typeof objectStatic.fromEntries !== 'function') {
   };
 }
 
+const globalScope = (typeof globalThis !== 'undefined' ? globalThis : window) as unknown as {
+  BigInt?: (value: string | number | boolean) => number;
+};
+
+if (typeof globalScope.BigInt !== 'function') {
+  globalScope.BigInt = function (value: string | number | boolean): number {
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : Math.trunc(parsed);
+  };
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
