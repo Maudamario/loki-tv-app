@@ -14,7 +14,7 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
-    target: ['es2018', 'chrome61', 'edge79', 'firefox60', 'safari11'],
+    target: ['es2017', 'chrome66'],
     outDir: 'dist',
     sourcemap: false,
   },
