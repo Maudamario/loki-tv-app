@@ -124,6 +124,20 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
   );
 }
 
+function triggerDirectLink(url: string) {
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.rel = 'noopener noreferrer';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  } catch {
+    window.location.assign(url);
+  }
+}
+
 function AppCard({ app }: { app: AppItem }) {
   const [imgError, setImgError] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -145,10 +159,10 @@ function AppCard({ app }: { app: AppItem }) {
     if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
 
     setDownloading(true);
-    setProgress(20);
-    setStatusText('Iniciando descarga del APK...');
+    setProgress(25);
+    setStatusText('Solicitando descarga del APK...');
 
-    let stepPct = 20;
+    let stepPct = 25;
     intervalRef.current = window.setInterval(() => {
       stepPct += 25;
       if (stepPct >= 100) {
@@ -157,24 +171,20 @@ function AppCard({ app }: { app: AppItem }) {
           intervalRef.current = null;
         }
         setProgress(100);
-        setStatusText('Enlace enviado al navegador / gestor de descargas');
+        setStatusText('Enlace enviado al dispositivo (verifique descargas)');
       } else {
         setProgress(stepPct);
-        setStatusText(`Preparando descarga... ${stepPct}%`);
+        setStatusText(`Abriendo enlace de descarga... ${stepPct}%`);
       }
     }, 180);
 
-    // Apertura directa compatible con Fire Stick / Silk / WebView
-    const opened = window.open(app.downloadUrl, '_blank', 'noopener,noreferrer');
-    if (!opened) {
-      window.location.href = app.downloadUrl;
-    }
+    triggerDirectLink(app.downloadUrl);
 
     resetTimerRef.current = window.setTimeout(() => {
       setDownloading(false);
       setProgress(0);
       setStatusText('');
-    }, 2600);
+    }, 3200);
   };
 
   return (
