@@ -13,4 +13,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    target: ['es2018', 'chrome61', 'edge79', 'firefox60', 'safari11'],
+    outDir: 'dist',
+    sourcemap: false,
+  },
 });
